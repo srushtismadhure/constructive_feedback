@@ -79,7 +79,7 @@ Copy `.env.local.example` to `.env.local` and set `NEXT_PUBLIC_API_URL` if the b
 
 ### 2. Backend
 
-Requires Python 3.11+ and [`uv`](https://docs.astral.sh/uv/).
+Requires Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
 cd web/backend
