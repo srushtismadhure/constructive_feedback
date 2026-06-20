@@ -1,0 +1,53 @@
+{
+  "building_id": "landing-pad",
+  "components": [
+    {
+      "id": "f1",
+      "type": "foundation",
+      "position": [2, 2, 0],
+      "material": "regolith",
+      "quantity": 5,
+      "depends_on": []
+    },
+    {
+      "id": "f2",
+      "type": "foundation",
+      "position": [3, 2, 0],
+      "material": "regolith",
+      "quantity": 5,
+      "depends_on": []
+    },
+    {
+      "id": "f3",
+      "type": "foundation",
+      "position": [2, 3, 0],
+      "material": "regolith",
+      "quantity": 5,
+      "depends_on": []
+    },
+    {
+      "id": "f4",
+      "type": "foundation",
+      "position": [3, 3, 0],
+      "material": "regolith",
+      "quantity": 5,
+      "depends_on": []
+    },
+    {
+      "id": "p1",
+      "type": "panel",
+      "position": [2, 2, 1],
+      "material": "metal",
+      "quantity": 2,
+      "depends_on": ["f1", "f2", "f3", "f4"]
+    },
+    {
+      "id": "p2",
+      "type": "panel",
+      "position": [3, 3, 1],
+      "material": "metal",
+      "quantity": 2,
+      "depends_on": ["f1", "f2", "f3", "f4"]
+    }
+  ]
+}
