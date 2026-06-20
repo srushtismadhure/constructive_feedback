@@ -1,0 +1,45 @@
+{
+  "building_id": "comm-tower",
+  "components": [
+    {
+      "id": "f1",
+      "type": "foundation",
+      "position": [4, 4, 0],
+      "material": "regolith",
+      "quantity": 6,
+      "depends_on": []
+    },
+    {
+      "id": "w1",
+      "type": "wall",
+      "position": [4, 4, 1],
+      "material": "metal",
+      "quantity": 4,
+      "depends_on": ["f1"]
+    },
+    {
+      "id": "w2",
+      "type": "wall",
+      "position": [4, 4, 2],
+      "material": "metal",
+      "quantity": 4,
+      "depends_on": ["w1"]
+    },
+    {
+      "id": "w3",
+      "type": "wall",
+      "position": [4, 4, 3],
+      "material": "metal",
+      "quantity": 3,
+      "depends_on": ["w2"]
+    },
+    {
+      "id": "p1",
+      "type": "panel",
+      "position": [4, 4, 4],
+      "material": "metal",
+      "quantity": 2,
+      "depends_on": ["w3"]
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "building_id": "habitat-dome",
+  "components": [
+    {
+      "id": "f1",
+      "type": "foundation",
+      "position": [3, 3, 0],
+      "material": "regolith",
+      "quantity": 4,
+      "depends_on": []
+    },
+    {
+      "id": "f2",
+      "type": "foundation",
+      "position": [4, 3, 0],
+      "material": "regolith",
+      "quantity": 4,
+      "depends_on": []
+    },
+    {
+      "id": "w1",
+      "type": "wall",
+      "position": [3, 3, 1],
+      "material": "regolith",
+      "quantity": 3,
+      "depends_on": ["f1"]
+    },
+    {
+      "id": "w2",
+      "type": "wall",
+      "position": [4, 3, 1],
+      "material": "regolith",
+      "quantity": 3,
+      "depends_on": ["f2"]
+    },
+    {
+      "id": "w3",
+      "type": "wall",
+      "position": [3, 4, 1],
+      "material": "regolith",
+      "quantity": 3,
+      "depends_on": ["f1"]
+    },
+    {
+      "id": "r1",
+      "type": "roof",
+      "position": [3, 3, 2],
+      "material": "metal",
+      "quantity": 2,
+      "depends_on": ["w1", "w2", "w3"]
+    },
+    {
+      "id": "p1",
+      "type": "panel",
+      "position": [4, 4, 1],
+      "material": "metal",
+      "quantity": 1,
+      "depends_on": ["f2"]
+    },
+    {
+      "id": "p2",
+      "type": "panel",
+      "position": [5, 3, 1],
+      "material": "metal",
+      "quantity": 1,
+      "depends_on": ["f2"]
+    }
+  ]
+}
