@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #05111f;
+  --foreground: #a8d4ff;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+.blueprint-grid {
+  background-image:
+    linear-gradient(rgba(30, 58, 95, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 58, 95, 0.35) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.card-hover-glow {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
+}
+
+.card-hover-glow:hover {
+  box-shadow: 0 0 24px rgba(74, 158, 255, 0.25), 0 0 48px rgba(74, 158, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+@keyframes corner-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.corner-accent {
+  animation: corner-pulse 2.5s ease-in-out infinite;
+}
+
+/* Scanline overlay */
+.scanlines::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Category badge colors */
+.badge-habitat   { @apply bg-orange-900/50 text-orange-300 border border-orange-700/50; }
+.badge-infrastructure { @apply bg-blue-900/50 text-blue-300 border border-blue-700/50; }
+.badge-research  { @apply bg-purple-900/50 text-purple-300 border border-purple-700/50; }
+.badge-production { @apply bg-green-900/50 text-green-300 border border-green-700/50; }
+
+.complexity-basic        { @apply text-green-400; }
+.complexity-intermediate { @apply text-yellow-400; }
+.complexity-advanced     { @apply text-red-400; }
