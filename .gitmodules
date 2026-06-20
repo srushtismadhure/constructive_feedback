@@ -1,0 +1,3 @@
+[submodule "robot_training"]
+	path = robot_training
+	url = https://github.com/hud-evals/worldsim-template
