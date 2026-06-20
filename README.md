@@ -136,3 +136,7 @@ git submodule update --remote robot_training
 git add robot_training
 git commit -m "chore: bump robot_training submodule"
 ```
+
+## Orchestrator Diagram
+<img width="1440" height="2360" alt="image" src="https://github.com/user-attachments/assets/656e1919-728b-449e-b542-9e86e91a83ed" />
+
