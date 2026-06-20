@@ -2,7 +2,7 @@
 name = "mars-construction-backend"
 version = "0.1.0"
 description = "Mars Construction API — Modal + FastAPI orchestration backend"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "modal>=0.73.0",
     "fastapi>=0.115.0",
@@ -20,11 +20,11 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
 [tool.pyright]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 typeCheckingMode = "basic"

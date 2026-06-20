@@ -15,7 +15,7 @@ from pydantic import BaseModel
 # Modal image — install Python dependencies in the container
 # ---------------------------------------------------------------------------
 image = (
-    modal.Image.debian_slim()
+    modal.Image.debian_slim(python_version="3.12")
     .pip_install(
         "fastapi>=0.115.0",
         "pydantic>=2.0.0",
