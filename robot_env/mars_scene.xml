@@ -1,4 +1,4 @@
-<mujoco model="mars_ingenuity_scene">
+<mujoco model="mars_rover_scene">
   <compiler angle="degree" coordinate="local" inertiafromgeom="true"/>
 
   <option timestep="0.002" gravity="0 0 -3.721">
@@ -11,47 +11,68 @@
 
   <asset>
     <texture name="sky" type="skybox" builtin="gradient" rgb1="0.03 0.02 0.05" rgb2="0.65 0.32 0.18" width="512" height="512"/>
-
     <texture name="soil_tex" type="2d" builtin="gradient" rgb1="0.72 0.35 0.22" rgb2="0.42 0.18 0.09" width="2048" height="2048"/>
     <material name="terrain_mat" texture="soil_tex" texrepeat="8 8" shininess="0.03" specular="0.03"/>
+    <material name="ingenuity_body_mat" rgba="0.92 0.92 0.86 1"/>
+    <material name="ingenuity_blades_mat" rgba="0.08 0.08 0.08 1"/>
+    <material name="ingenuity_legs_mat" rgba="0.02 0.02 0.02 1"/>
+    <material name="rover_chassis_mat" rgba="0.88 0.66 0.18 1" shininess="0.35" specular="0.2"/>
+    <material name="rover_panel_mat" rgba="0.05 0.12 0.25 1" shininess="0.5" specular="0.35"/>
+    <material name="rover_wheel_mat" rgba="0.08 0.08 0.08 1"/>
 
     <mesh name="mars_terrain" file="Mars - Spirit Landing Site_smooth.stl" scale="0.25 0.25 0.25"/>
     <hfield name="mars_heightfield" file="Mars - Spirit Landing Site_heightfield.png" size="21.219839 20.501948 2.819581 0.05"/>
-
-    <!-- Ingenuity decoration assets. Visual-only geoms keep the scene lightweight and non-interactive. -->
-    <texture name="ingenuity_carbon" type="2d" file="ingenuity-mujoco/assets/carbon.png"/>
-    <material name="ingenuity_body_mat" rgba="1 1 1 1"/>
-    <material name="ingenuity_blades_mat" texture="ingenuity_carbon" rgba="0.3 0.3 0.3 1"/>
-    <material name="ingenuity_legs_mat" rgba="0.05 0.05 0.05 0.8"/>
-    <mesh name="ingenuity_main_body" file="ingenuity-mujoco/assets/mhs_mainbody_v16.stl"/>
-    <mesh name="ingenuity_top_blades" file="ingenuity-mujoco/assets/mhs_topblades_v16.stl"/>
-    <mesh name="ingenuity_bottom_blades" file="ingenuity-mujoco/assets/mhs_bottomblades_v16.stl"/>
-    <mesh name="ingenuity_leg_01" file="ingenuity-mujoco/assets/mhs_leg01_v16.stl"/>
-    <mesh name="ingenuity_leg_02" file="ingenuity-mujoco/assets/mhs_leg02_v16.stl"/>
-    <mesh name="ingenuity_leg_03" file="ingenuity-mujoco/assets/mhs_leg03_v16.stl"/>
-    <mesh name="ingenuity_leg_04" file="ingenuity-mujoco/assets/mhs_leg04_v16.stl"/>
   </asset>
 
   <worldbody>
     <light directional="true" diffuse="0.85 0.75 0.65" specular="0.2 0.2 0.2" pos="0 0 150" dir="0.3 0.2 -1" castshadow="true"/>
     <light directional="true" diffuse="0.25 0.15 0.1" pos="0 0 100" dir="-0.3 -0.2 -1"/>
 
-    <geom name="terrain_visual" type="mesh" mesh="mars_terrain" material="terrain_mat" contype="0" conaffinity="0" group="1"/>
-    <geom name="terrain_collision" type="hfield" hfield="mars_heightfield" pos="4.536614 -5.097652 3.032014" rgba="0 0 0 0" condim="3" group="1"/>
+    <geom name="terrain_visual" type="mesh" mesh="mars_terrain" material="terrain_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="terrain_collision" type="hfield" hfield="mars_heightfield" pos="4.536614 -5.097652 3.032014" rgba="0 0 0 0" contype="0" conaffinity="0" group="2"/>
+    <geom name="rover_drive_plane" type="plane" pos="0 0 3.31" size="8 8 0.1" material="terrain_mat" condim="6" group="1"/>
 
-    <!-- Static Ingenuity display model on the scaled Mars surface. -->
-    <body name="ingenuity_display" pos="-1 0.75 3.85" euler="0 0 -35">
-      <freejoint name="ingenuity_free"/>
-      <inertial pos="0 0 0" mass="1.0" diaginertia="0.01 0.01 0.01"/>
-      <geom name="ingenuity_body" type="mesh" mesh="ingenuity_main_body" material="ingenuity_body_mat" quat="0 0 1 0" contype="0" conaffinity="0" group="2"/>
-      <geom name="ingenuity_leg_01" type="mesh" mesh="ingenuity_leg_01" material="ingenuity_legs_mat" pos="-0.1945 -0.196 -0.215" quat="0 0 1 0" contype="0" conaffinity="0" group="2"/>
-      <geom name="ingenuity_leg_02" type="mesh" mesh="ingenuity_leg_02" material="ingenuity_legs_mat" pos="0.196 -0.1945 -0.215" quat="0 0 1 0" contype="0" conaffinity="0" group="2"/>
-      <geom name="ingenuity_leg_03" type="mesh" mesh="ingenuity_leg_03" material="ingenuity_legs_mat" pos="0.1945 0.196 -0.215" quat="0 0 1 0" contype="0" conaffinity="0" group="2"/>
-      <geom name="ingenuity_leg_04" type="mesh" mesh="ingenuity_leg_04" material="ingenuity_legs_mat" pos="-0.196 0.1945 -0.215" quat="0 0 1 0" contype="0" conaffinity="0" group="2"/>
-      <body name="ingenuity_rotors" quat="0 0 1 0">
-        <geom name="ingenuity_top_blades" type="mesh" mesh="ingenuity_top_blades" material="ingenuity_blades_mat" pos="0 0 -0.0675" contype="0" conaffinity="0" group="2"/>
-        <geom name="ingenuity_bottom_blades" type="mesh" mesh="ingenuity_bottom_blades" material="ingenuity_blades_mat" pos="0 0 0.0092" quat="0.6 0 0 1" contype="0" conaffinity="0" group="2"/>
+    <!-- Simple differential-drive rover with real wheel hinge joints and velocity actuators. -->
+    <body name="simple_rover" pos="1.25 -0.5 3.55">
+      <freejoint name="rover_free"/>
+      <geom name="rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="4.0"/>
+      <geom name="rover_solar_panel" type="box" size="0.32 0.22 0.01" pos="0 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
+
+      <body name="wheel_fl" pos="0.24 0.31 -0.1">
+        <joint name="wheel_fl_joint" type="hinge" axis="0 1 0" damping="0.02"/>
+        <geom name="wheel_fl_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.8 0.08 0.02"/>
+      </body>
+      <body name="wheel_fr" pos="0.24 -0.31 -0.1">
+        <joint name="wheel_fr_joint" type="hinge" axis="0 1 0" damping="0.02"/>
+        <geom name="wheel_fr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.8 0.08 0.02"/>
+      </body>
+      <body name="wheel_rl" pos="-0.24 0.31 -0.1">
+        <joint name="wheel_rl_joint" type="hinge" axis="0 1 0" damping="0.02"/>
+        <geom name="wheel_rl_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.8 0.08 0.02"/>
+      </body>
+      <body name="wheel_rr" pos="-0.24 -0.31 -0.1">
+        <joint name="wheel_rr_joint" type="hinge" axis="0 1 0" damping="0.02"/>
+        <geom name="wheel_rr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.8 0.08 0.02"/>
       </body>
     </body>
+
+    <!-- Lightweight primitive Ingenuity stand-in kept as scenery. -->
+    <body name="ingenuity_display" pos="-1 0.75 3.85" euler="0 0 -35">
+      <geom name="ingenuity_body" type="box" size="0.11 0.08 0.07" pos="0 0 0" material="ingenuity_body_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_mast" type="cylinder" size="0.012 0.32" pos="0 0 0.32" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_top_blade_a" type="box" size="0.55 0.025 0.006" pos="0 0 0.66" material="ingenuity_blades_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_top_blade_b" type="box" size="0.025 0.55 0.006" pos="0 0 0.62" material="ingenuity_blades_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_leg_1" type="capsule" fromto="0.08 0.06 -0.03 0.35 0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_leg_2" type="capsule" fromto="-0.08 0.06 -0.03 -0.35 0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_leg_3" type="capsule" fromto="0.08 -0.06 -0.03 0.35 -0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_leg_4" type="capsule" fromto="-0.08 -0.06 -0.03 -0.35 -0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+    </body>
   </worldbody>
+
+  <actuator>
+    <motor name="wheel_fl_motor" joint="wheel_fl_joint" gear="1" ctrlrange="-1.2 1.2" ctrllimited="true"/>
+    <motor name="wheel_fr_motor" joint="wheel_fr_joint" gear="1" ctrlrange="-1.2 1.2" ctrllimited="true"/>
+    <motor name="wheel_rl_motor" joint="wheel_rl_joint" gear="1" ctrlrange="-1.2 1.2" ctrllimited="true"/>
+    <motor name="wheel_rr_motor" joint="wheel_rr_joint" gear="1" ctrlrange="-1.2 1.2" ctrllimited="true"/>
+  </actuator>
 </mujoco>

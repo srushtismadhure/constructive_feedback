@@ -18,17 +18,17 @@ except ImportError:  # Allows local smoke tests before installing hud-python[rob
 SCENE_DIR = os.path.dirname(os.path.abspath(__file__))
 SCENE_XML = os.path.join(SCENE_DIR, "mars_scene.xml")
 
-ROBOT_BODY = "ingenuity_display"
-ROBOT_JOINT = "ingenuity_free"
+ROBOT_BODY = "simple_rover"
+ROBOT_JOINT = "rover_free"
 TERRAIN_GEOM_GROUP = 1
-SURFACE_CLEARANCE = 0.35
-ACTION_SCALE_XY = 0.25
-ACTION_SCALE_YAW = math.radians(12)
+SURFACE_CLEARANCE = 0.24
+MAX_WHEEL_TORQUE = 1.0
+PHYSICS_STEPS_PER_ACTION = 20
 CAMERA_HEIGHT = 256
 CAMERA_WIDTH = 256
 
 CONTRACT = {
-    "robot_type": "mars_ingenuity_mujoco",
+    "robot_type": "mars_wheel_rover_mujoco",
     "control_rate": 10,
     "features": {
         "observation/image": {
@@ -41,14 +41,14 @@ CONTRACT = {
         "observation/state": {
             "role": "observation",
             "dtype": "float32",
-            "shape": [4],
-            "names": ["x", "y", "z", "yaw"],
+            "shape": [8],
+            "names": ["x", "y", "z", "yaw", "vx", "vy", "vz", "yaw_rate"],
         },
         "action": {
             "role": "action",
             "dtype": "float32",
-            "shape": [3],
-            "names": ["dx", "dy", "dyaw"],
+            "shape": [2],
+            "names": ["forward_speed", "turn_speed"],
         },
     },
 }
@@ -74,9 +74,8 @@ class EpisodeResult:
 class MarsMujocoBridge(RobotBridge):
     """HUD RobotBridge for the Mars MuJoCo scene.
 
-    The current project has no physical drivetrain robot. This bridge treats
-    Ingenuity as the controllable embodiment and kinematically moves its root
-    freejoint over the scaled Mars terrain from actions [dx, dy, dyaw].
+    Actions are [forward_speed, turn_speed] in [-1, 1]. The bridge maps them
+    to left/right wheel velocity actuator targets on a primitive rover.
     """
 
     def __init__(self, render: bool = True):
@@ -87,6 +86,7 @@ class MarsMujocoBridge(RobotBridge):
         self.renderer: mujoco.Renderer | None = None
         self.robot_qposadr = 0
         self.robot_qveladr = 0
+        self.wheel_actuator_ids: list[int] = []
         self.terrain_geomgroup = np.zeros(6, dtype=np.uint8)
         self.terrain_geomgroup[TERRAIN_GEOM_GROUP] = 1
         self.ray_down = np.array([0.0, 0.0, -1.0], dtype=np.float64)
@@ -121,28 +121,47 @@ class MarsMujocoBridge(RobotBridge):
         joint_id = self.model.joint(ROBOT_JOINT).id
         self.robot_qposadr = self.model.jnt_qposadr[joint_id]
         self.robot_qveladr = self.model.jnt_dofadr[joint_id]
+        self.wheel_actuator_ids = [
+            self.model.actuator(name).id
+            for name in ("wheel_fl_motor", "wheel_fr_motor", "wheel_rl_motor", "wheel_rr_motor")
+        ]
 
         self.terminated = False
         self.success = False
         self.total_reward = 0.0
         self.steps = 0
 
-        self._set_robot_pose(-1.0, 0.75, math.radians(-35.0))
-        return "Move Ingenuity around the Mars surface using actions [dx, dy, dyaw]."
+        self._set_robot_pose(1.25, -0.5, 0.0)
+        for _ in range(200):
+            mujoco.mj_step(self.model, self.data)
+        self.data.qvel[:] = 0.0
+        self.data.ctrl[:] = 0.0
+        mujoco.mj_forward(self.model, self.data)
+        return "Drive the Mars rover using actions [forward_speed, turn_speed]."
 
     def step(self, action) -> None:
         self._require_ready()
         action = np.asarray(action, dtype=np.float32).reshape(-1)
-        if action.size < 3:
-            raise ValueError(f"Expected action with 3 values [dx, dy, dyaw], got {action!r}")
+        if action.size < 2:
+            raise ValueError(
+                f"Expected action with 2 values [forward_speed, turn_speed], got {action!r}"
+            )
+        assert self.model is not None
+        assert self.data is not None
 
-        x, y, _, yaw = self._robot_pose()
-        x += float(np.clip(action[0], -1.0, 1.0)) * ACTION_SCALE_XY
-        y += float(np.clip(action[1], -1.0, 1.0)) * ACTION_SCALE_XY
-        yaw += float(np.clip(action[2], -1.0, 1.0)) * ACTION_SCALE_YAW
+        forward = float(np.clip(action[0], -1.0, 1.0))
+        turn = float(np.clip(action[1], -1.0, 1.0))
+        left_torque = np.clip(forward - turn, -1.0, 1.0) * MAX_WHEEL_TORQUE
+        right_torque = np.clip(forward + turn, -1.0, 1.0) * MAX_WHEEL_TORQUE
 
-        self._set_robot_pose(x, y, yaw)
-        mujoco.mj_forward(self.model, self.data)
+        fl, fr, rl, rr = self.wheel_actuator_ids
+        self.data.ctrl[fl] = left_torque
+        self.data.ctrl[rl] = left_torque
+        self.data.ctrl[fr] = right_torque
+        self.data.ctrl[rr] = right_torque
+
+        for _ in range(PHYSICS_STEPS_PER_ACTION):
+            mujoco.mj_step(self.model, self.data)
 
         self.steps += 1
         self.total_reward += 0.0
@@ -158,7 +177,7 @@ class MarsMujocoBridge(RobotBridge):
         else:
             self.renderer.update_scene(self.data)
             rgb = self.renderer.render().astype(np.uint8)
-        state = np.array(self._robot_pose(), dtype=np.float32)
+        state = np.array(self._robot_state(), dtype=np.float32)
 
         return {
             "observation/image": rgb,
@@ -188,6 +207,12 @@ class MarsMujocoBridge(RobotBridge):
         pos = self.data.qpos[self.robot_qposadr : self.robot_qposadr + 3]
         quat = self.data.qpos[self.robot_qposadr + 3 : self.robot_qposadr + 7]
         return float(pos[0]), float(pos[1]), float(pos[2]), quat_to_yaw(quat)
+
+    def _robot_state(self) -> tuple[float, float, float, float, float, float, float, float]:
+        assert self.data is not None
+        x, y, z, yaw = self._robot_pose()
+        vel = self.data.qvel[self.robot_qveladr : self.robot_qveladr + 6]
+        return x, y, z, yaw, float(vel[0]), float(vel[1]), float(vel[2]), float(vel[5])
 
     def _set_robot_pose(self, x: float, y: float, yaw: float) -> None:
         assert self.model is not None
@@ -224,7 +249,7 @@ async def _smoke_test(steps: int, render: bool) -> None:
     print(f"prompt: {prompt}")
 
     for i in range(steps):
-        bridge.step(np.array([0.5, 0.0, 0.15], dtype=np.float32))
+        bridge.step(np.array([0.6, 0.15], dtype=np.float32))
         obs, terminated = bridge.get_observation()
         print(
             f"step={i + 1} state={np.round(obs['observation/state'], 3).tolist()} "

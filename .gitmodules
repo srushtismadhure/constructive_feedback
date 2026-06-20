@@ -1,3 +1,6 @@
 [submodule "robot_training"]
 	path = robot_training
 	url = https://github.com/hud-evals/worldsim-template
+[submodule "robot_env/ingenuity-mujoco"]
+	path = robot_env/ingenuity-mujoco
+	url = https://github.com/alefram/ingenuity-mujoco
