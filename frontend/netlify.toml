@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NEXT_PUBLIC_API_URL = "https://constructive-feedback--mars-construction-fastapi-app.modal.run"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
