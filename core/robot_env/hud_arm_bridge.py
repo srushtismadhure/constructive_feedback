@@ -19,7 +19,7 @@ SCENE_DIR = os.path.dirname(os.path.abspath(__file__))
 CAMERA_HEIGHT = 256
 CAMERA_WIDTH = 256
 PHYSICS_STEPS_PER_ACTION = 20
-DELTA_SCALE = np.array([0.07, 0.07, 0.07, 0.08], dtype=np.float32)
+DELTA_SCALE = np.array([0.18, 0.18, 0.18, 0.20], dtype=np.float32)
 GRIPPER_CLOSED_LEFT = -0.020
 GRIPPER_CLOSED_RIGHT = 0.020
 PICK_DISTANCE = 0.16
@@ -39,9 +39,9 @@ PILE_BASE_Z = 3.39
 DOME_CENTER = (1.671, -0.146, 3.39)
 DOME_TIERS = [
     # (count, radius, z, angle_offset_rad)
-    (16, 0.50, 3.39, 0.0),
-    (12, 0.36, 3.50, math.pi / 12),  # half-step offset so the ring lands between tier-0 cubes
-    (8, 0.20, 3.61, 0.0),
+    (16, 0.25, 3.39, 0.0),
+    (12, 0.18, 3.50, math.pi / 12),
+    (8, 0.10, 3.61, 0.0),
 ]
 
 # The arm's yaw_body sits at this world position (rover at 1.25,-0.5,3.55, +0.09 chassis-top,
@@ -133,13 +133,17 @@ def _pile_positions(pile_center: tuple[float, float] = PILE_CENTER_XY) -> list[n
     return positions
 
 
-def _dome_positions(dome_center: tuple[float, float, float] = DOME_CENTER) -> list[np.ndarray]:
+def _dome_positions(
+    dome_center: tuple[float, float, float] = DOME_CENTER,
+    radial_scale: float = 1.0,
+) -> list[np.ndarray]:
     """36 dome target positions forming a 3-tier dome (16+12+8) with decreasing
     radius at increasing height, centered at ``dome_center`` (xy used; z from tiers).
     """
     cx, cy = dome_center[0], dome_center[1]
     positions: list[np.ndarray] = []
     for count, radius, z, offset in DOME_TIERS:
+        radius *= radial_scale
         for i in range(count):
             angle = offset + 2 * math.pi * i / count
             positions.append(np.array([cx + radius * math.cos(angle),
