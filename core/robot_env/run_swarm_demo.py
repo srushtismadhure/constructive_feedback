@@ -63,7 +63,7 @@ def _dome_staging_for_target(target_xyz: np.ndarray) -> tuple[float, float]:
                        float(target_xyz[0] - DOME_CENTER[0]))
     return _staging_at(DOME_STAGING_RADIUS, math.degrees(angle))
 DRIVE_TOL = 0.18
-STAGING_TOL = 0.07  # tighter for the final approach so IK has a stable origin
+STAGING_TOL = 0.15  # loose enough that the rover doesn't stall fine-tuning its pose
 APPROACH_DZ = 0.28
 GRASP_DZ = 0.08
 
@@ -99,6 +99,32 @@ class RoverAgent:
         self.action_idx: int = 0
         self.current_dome_target_idx: int | None = None
         self.current_pile_cube_idx: int | None = None
+        # Stall recovery: if a rover sits in a DRIVING_* state for too many
+        # ticks, snap its chassis to the goal so the demo keeps progressing
+        # instead of looping forever on a wheel/contact edge case.
+        self._stall_counter = 0
+        self._stall_state = State.IDLE_AT_DOME
+
+    def _maybe_recover_stall(self, goal_xy: tuple[float, float], threshold: int = 800) -> bool:
+        """If the rover is failing to reach ``goal_xy`` after ``threshold`` ticks
+        in the same DRIVING state, teleport its chassis to the goal so the loop
+        can proceed. Returns True if a recovery snap happened."""
+        if self.state != self._stall_state:
+            self._stall_state = self.state
+            self._stall_counter = 0
+        self._stall_counter += 1
+        if self._stall_counter < threshold:
+            return False
+        data = self.bridge.data
+        qa = self.nav.qposadr
+        # Keep z and orientation; just move xy and zero velocity.
+        data.qpos[qa] = goal_xy[0]
+        data.qpos[qa + 1] = goal_xy[1]
+        data.qvel[self.nav.qveladr:self.nav.qveladr + 6] = 0.0
+        # Reset the counter so we don't re-snap every tick if we still aren't
+        # "at goal" exactly (snapping puts us right on top of it though).
+        self._stall_counter = 0
+        return True
 
     # ---- one tick of the state machine ----
     def tick(self) -> np.ndarray:
@@ -126,6 +152,7 @@ class RoverAgent:
                 self.action_idx = 0
                 self.state = State.PICKING
                 return STOW_OPEN
+            self._maybe_recover_stall(self.pile_staging)
             self.nav.step_drive(self.pile_staging)
             return STOW_OPEN
 
@@ -158,6 +185,7 @@ class RoverAgent:
                 self.action_idx = 0
                 self.state = State.PLACING
                 return STOW_CLOSED
+            self._maybe_recover_stall(dome_staging)
             self.nav.step_drive(dome_staging)
             return STOW_CLOSED
 

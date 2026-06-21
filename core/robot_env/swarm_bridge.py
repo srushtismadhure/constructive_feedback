@@ -57,16 +57,19 @@ def _swarm_pile_positions(center_x: float, center_y: float) -> list[np.ndarray]:
 SCENE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DOME_CENTER = (0.0, 0.0, 3.39)
+# The printer's job is intentionally independent from the swarm build.
+PRINTER_DOME_CENTER = (4.5, -3.5, 3.39)
 NUM_ROVERS = 3
 PILE_RADIUS = 3.5
 # The outer dome tier has a 0.50 m radius. Keep rover chassis outside that
 # ring while retaining enough arm reach for the innermost tier.
-DOME_STAGING_RADIUS = 1.00
+DOME_STAGING_RADIUS = 0.85
 # Keep rover centres outside the pile by more than the chassis half-length
 # (0.36 m) plus a margin. The arm reaches into the remaining gap.
-PILE_SAFETY_CLEARANCE = 0.70
+PILE_SAFETY_CLEARANCE = 0.50
 PILE_STAGING_RADIUS = PILE_RADIUS - PILE_SAFETY_CLEARANCE
 CUBES_PER_PILE = 12  # each rover owns a 2x2x3 = 12 cube pile
+SWARM_DOME_RADIUS_SCALE = 2.0
 # Swarm choreography uses the same IK poses as the single rover but can safely
 # take larger position increments because the bridge pins scripted cubes.
 SWARM_ARM_DELTA_SCALE = DELTA_SCALE * 1.8
@@ -293,6 +296,8 @@ class MarsSwarmBridge:
         self.cube_default_conaffinity: list[int] = []
         # Dome targets (shared, indexed 0..35)
         self.dome_targets: list[np.ndarray] = []
+        # Independent printer targets; these must never be assigned to swarm cubes.
+        self.printer_dome_targets: list[np.ndarray] = []
         self.cube_placed: list[bool] = [False] * NUM_CUBES
         # Pile state
         self.pile_queue: deque[int] = deque()   # cube indices available to grasp, top-down
@@ -349,7 +354,8 @@ class MarsSwarmBridge:
         for i, pos in enumerate(all_pile_positions):
             self._set_cube_pose_idx(i, pos)
             self.pile_pinned[i] = np.array(pos, dtype=np.float64)
-        self.dome_targets = _dome_positions(DOME_CENTER)
+        self.dome_targets = _dome_positions(DOME_CENTER, radial_scale=SWARM_DOME_RADIUS_SCALE)
+        self.printer_dome_targets = _dome_positions(PRINTER_DOME_CENTER)
 
         # Partition dome targets by sector. Each rover gets a deque of dome target
         # indices ordered tier-by-tier (which _dome_positions already does).
@@ -359,6 +365,15 @@ class MarsSwarmBridge:
             angle = math.atan2(tgt[1] - cy, tgt[0] - cx)
             rover = _azimuth_to_rover(angle)
             dome_queues[rover].append(ti)
+
+        # Sector boundaries can split a ring unevenly (13/12/11). Rebalance to
+        # the 12 cubes physically available to each rover so the dome completes.
+        targets_per_rover = NUM_CUBES // NUM_ROVERS
+        for queue in dome_queues:
+            while len(queue) > targets_per_rover:
+                target = queue.pop()
+                receiver = min(range(NUM_ROVERS), key=lambda idx: len(dome_queues[idx]))
+                dome_queues[receiver].append(target)
 
         # Spawn poses for rovers (these match the XML's <body pos="..."> values).
         spawn_radius = 0.65
@@ -371,8 +386,7 @@ class MarsSwarmBridge:
             yaw = math.atan2(-sy, -sx)
             spawns.append((sx, sy, 3.55, yaw))
 
-        # Build RoverUnits with their assigned queues. Each rover owns 12 cubes:
-        # rover k -> cube indices [12k, 12(k+1)).
+        # Build RoverUnits with their assigned queues. Each rover owns 12 cubes.
         self.rovers = []
         for k, prefix in enumerate(ROVER_PREFIXES):
             rover_pile_queue = deque(range(k * CUBES_PER_PILE, (k + 1) * CUBES_PER_PILE))

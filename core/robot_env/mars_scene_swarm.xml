@@ -17,6 +17,7 @@
     <material name="ingenuity_blades_mat" rgba="0.08 0.08 0.08 1"/>
     <material name="ingenuity_legs_mat" rgba="0.02 0.02 0.02 1"/>
     <material name="rover_chassis_mat" rgba="0.88 0.66 0.18 1" shininess="0.35" specular="0.2"/>
+    <material name="printer_body_mat" rgba="0.88 0.88 0.86 1" shininess="0.35" specular="0.2"/>
     <material name="rover_panel_mat" rgba="0.05 0.12 0.25 1" shininess="0.5" specular="0.35"/>
     <material name="rover_wheel_mat" rgba="0.08 0.08 0.08 1"/>
     <material name="arm_mat" rgba="0.62 0.68 0.72 1" shininess="0.25" specular="0.15"/>
@@ -36,6 +37,10 @@
     <geom name="terrain_visual" type="mesh" mesh="mars_terrain" material="terrain_mat" contype="0" conaffinity="0" group="2"/>
     <geom name="terrain_collision" type="hfield" hfield="mars_heightfield" pos="4.536614 -5.097652 3.032014" rgba="0 0 0 0" contype="0" conaffinity="0" group="2"/>
     <geom name="rover_drive_plane" type="plane" pos="0 0 3.31" size="8 8 0.1" material="terrain_mat" condim="6" group="1" contype="1" conaffinity="3"/>
+
+    <!-- Dome footprint marker at origin. -->
+    <geom name="target_pad" type="cylinder" pos="0 0 3.312" size="0.30 0.004" material="target_mat" rgba="1 1 1 0" contype="0" conaffinity="0"/>
+    <site name="target_site" pos="0 0 3.39" size="0.02" rgba="0 0 0 0"/>
 
     <!-- 36-cube layout: three 2x2x3 piles, one per rover. Indices 0-11 = pile 0, 12-23 = pile 1, 24-35 = pile 2. -->
     <body name="pick_cube_0" pos="-0.060 -3.560 3.620"><freejoint name="pick_cube_0_free"/><geom name="pick_cube_0_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
@@ -76,7 +81,7 @@
     <body name="pick_cube_35" pos="3.091 1.810 3.390"><freejoint name="pick_cube_35_free"/><geom name="pick_cube_35_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
 
     <!-- Mobile rover r0_ (spawn facing dome center). -->
-    <body name="r0_simple_rover" pos="-0.0000 -3.0500 3.5500" quat="0.707107 0.000000 0.000000 -0.707107">
+    <body name="r0_simple_rover" pos="-0.0000 -3.0000 3.5500" quat="0.707107 0.000000 0.000000 -0.707107">
       <freejoint name="r0_rover_free"/>
       <geom name="r0_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r0_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
@@ -132,7 +137,7 @@
       </body>
     </body>
     <!-- Mobile rover r1_ (spawn facing dome center). -->
-    <body name="r1_simple_rover" pos="-2.6414 1.5250 3.5500" quat="0.258819 0.000000 0.000000 0.965926">
+    <body name="r1_simple_rover" pos="-2.5981 1.5000 3.5500" quat="0.258819 0.000000 0.000000 0.965926">
       <freejoint name="r1_rover_free"/>
       <geom name="r1_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r1_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
@@ -188,7 +193,7 @@
       </body>
     </body>
     <!-- Mobile rover r2_ (spawn facing dome center). -->
-    <body name="r2_simple_rover" pos="2.6414 1.5250 3.5500" quat="0.965926 0.000000 0.000000 0.258819">
+    <body name="r2_simple_rover" pos="2.5981 1.5000 3.5500" quat="0.965926 0.000000 0.000000 0.258819">
       <freejoint name="r2_rover_free"/>
       <geom name="r2_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r2_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
@@ -243,6 +248,27 @@
         </body>
       </body>
     </body>
+    <!-- Five mobile printers build a separate dome east of the swarm. Each nozzle is on a three-joint arm rigidly attached to its tracked base. -->
+    <body name="printer_0_base" pos="7.1000 -3.5000 3.4900" euler="0 0 180"><freejoint name="printer_0_free"/>
+      <geom name="printer_0_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_0_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_0_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_0_arm_yaw" pos="0 0 0.22"><joint name="printer_0_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_0_arm_upper"><joint name="printer_0_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_0_arm_forearm" pos="1.75 0 0"><joint name="printer_0_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_0_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
+    <body name="printer_1_base" pos="5.3034 -1.0271 3.4900" euler="0 0 252"><freejoint name="printer_1_free"/>
+      <geom name="printer_1_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_1_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_1_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_1_arm_yaw" pos="0 0 0.22"><joint name="printer_1_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_1_arm_upper"><joint name="printer_1_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_1_arm_forearm" pos="1.75 0 0"><joint name="printer_1_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_1_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
+    <body name="printer_2_base" pos="2.3966 -1.9714 3.4900" euler="0 0 324"><freejoint name="printer_2_free"/>
+      <geom name="printer_2_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_2_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_2_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_2_arm_yaw" pos="0 0 0.22"><joint name="printer_2_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_2_arm_upper"><joint name="printer_2_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_2_arm_forearm" pos="1.75 0 0"><joint name="printer_2_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_2_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
+    <body name="printer_3_base" pos="2.3966 -5.0286 3.4900" euler="0 0 36"><freejoint name="printer_3_free"/>
+      <geom name="printer_3_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_3_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_3_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_3_arm_yaw" pos="0 0 0.22"><joint name="printer_3_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_3_arm_upper"><joint name="printer_3_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_3_arm_forearm" pos="1.75 0 0"><joint name="printer_3_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_3_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
+    <body name="printer_4_base" pos="5.3034 -5.9729 3.4900" euler="0 0 108"><freejoint name="printer_4_free"/>
+      <geom name="printer_4_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_4_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_4_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_4_arm_yaw" pos="0 0 0.22"><joint name="printer_4_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_4_arm_upper"><joint name="printer_4_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_4_arm_forearm" pos="1.75 0 0"><joint name="printer_4_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_4_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
     <!-- Lightweight primitive Ingenuity stand-in kept as scenery. -->
     <body name="ingenuity_display" pos="-3 -3 3.85" euler="0 0 -35">
       <geom name="ingenuity_body" type="box" size="0.11 0.08 0.07" pos="0 0 0" material="ingenuity_body_mat" contype="0" conaffinity="0"/>
@@ -257,30 +283,30 @@
   </worldbody>
 
   <actuator>
-    <motor name="r0_wheel_fl_motor" joint="r0_wheel_fl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r0_wheel_fr_motor" joint="r0_wheel_fr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r0_wheel_rl_motor" joint="r0_wheel_rl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r0_wheel_rr_motor" joint="r0_wheel_rr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
+    <motor name="r0_wheel_fl_motor" joint="r0_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_fr_motor" joint="r0_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_rl_motor" joint="r0_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_rr_motor" joint="r0_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
     <position name="r0_arm_yaw_pos" joint="r0_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
     <position name="r0_arm_shoulder_pos" joint="r0_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
     <position name="r0_arm_elbow_pos" joint="r0_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
     <position name="r0_arm_wrist_pos" joint="r0_arm_wrist" kp="25" ctrlrange="-2.793 2.793" ctrllimited="true"/>
     <position name="r0_left_gripper_pos" joint="r0_left_gripper_slide" kp="60" ctrlrange="-0.020 0" ctrllimited="true"/>
     <position name="r0_right_gripper_pos" joint="r0_right_gripper_slide" kp="60" ctrlrange="0 0.020" ctrllimited="true"/>
-    <motor name="r1_wheel_fl_motor" joint="r1_wheel_fl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r1_wheel_fr_motor" joint="r1_wheel_fr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r1_wheel_rl_motor" joint="r1_wheel_rl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r1_wheel_rr_motor" joint="r1_wheel_rr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
+    <motor name="r1_wheel_fl_motor" joint="r1_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_fr_motor" joint="r1_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_rl_motor" joint="r1_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_rr_motor" joint="r1_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
     <position name="r1_arm_yaw_pos" joint="r1_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
     <position name="r1_arm_shoulder_pos" joint="r1_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
     <position name="r1_arm_elbow_pos" joint="r1_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
     <position name="r1_arm_wrist_pos" joint="r1_arm_wrist" kp="25" ctrlrange="-2.793 2.793" ctrllimited="true"/>
     <position name="r1_left_gripper_pos" joint="r1_left_gripper_slide" kp="60" ctrlrange="-0.020 0" ctrllimited="true"/>
     <position name="r1_right_gripper_pos" joint="r1_right_gripper_slide" kp="60" ctrlrange="0 0.020" ctrllimited="true"/>
-    <motor name="r2_wheel_fl_motor" joint="r2_wheel_fl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r2_wheel_fr_motor" joint="r2_wheel_fr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r2_wheel_rl_motor" joint="r2_wheel_rl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r2_wheel_rr_motor" joint="r2_wheel_rr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
+    <motor name="r2_wheel_fl_motor" joint="r2_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_fr_motor" joint="r2_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_rl_motor" joint="r2_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_rr_motor" joint="r2_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
     <position name="r2_arm_yaw_pos" joint="r2_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
     <position name="r2_arm_shoulder_pos" joint="r2_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
     <position name="r2_arm_elbow_pos" joint="r2_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
