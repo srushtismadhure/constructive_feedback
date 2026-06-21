@@ -1,0 +1,47 @@
+[project]
+# All Python lives here: the orchestration Brain, the robot_env MuJoCo sim, and the
+# FastAPI/Modal backend (main.py) that drives them. They share one interpreter because
+# the API runs the Brain and the adapter imports the sim in-process. (The Modal
+# *container* still gets its deps from image.pip_install(...) in main.py — this file is
+# the local/dev env.) robot_training is a submodule with its own env.
+name = "constructive-feedback-core"
+version = "0.1.0"
+description = "Orchestration Brain + Mars MuJoCo rover sim + FastAPI/Modal backend"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # orchestration Brain
+    "langgraph>=0.2.0",         # state machine
+    "pydantic>=2.0.0",          # contracts / schemas
+    "openai>=1.30.0",           # LLM coordinator (Fireworks, OpenAI-compatible client)
+    # robot_env MuJoCo sim
+    "mujoco>=3.2.0",            # physics + rendering
+    "numpy>=1.26.0",            # state / control
+    # FastAPI / Modal backend (main.py)
+    "modal>=0.73.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.4.0",
+    "pyright>=1.1.0",
+]
+
+[tool.uv]
+# Run in place — code is imported via sys.path (see mujoco_adapter / tests / main.py),
+# not installed as a package. Mirrors robot_training's layout.
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"

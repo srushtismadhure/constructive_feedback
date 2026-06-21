@@ -2,7 +2,7 @@
 
 We are building a verifiable multi-agent construction RL environment + a swarm policy trained in it + a demo wrapper.
 
-Users pick a Mars construction blueprint in the web UI, which dispatches an AI agent (via Modal) to run a physics-based build simulation. The simulation runs in the `robot_training` environment (Newton/MuJoCo), and the live output streams back to the browser.
+Users pick a Mars construction blueprint in the web UI, which dispatches an AI agent (via Modal) to run a physics-based build simulation. The simulation runs in the `robot_env` MuJoCo environment, and the live output streams back to the browser.
 
 ---
 
@@ -10,13 +10,23 @@ Users pick a Mars construction blueprint in the web UI, which dispatches an AI a
 
 ```
 constructive_feedback/
-├── web/
-│   ├── frontend/   Next.js (TypeScript) — blueprint selector UI + simulation viewer
-│   └── backend/    FastAPI + Modal — agent orchestration API
-└── robot_training/ Git submodule — worldsim-template RL environment (Newton physics)
+├── frontend/       Next.js (TypeScript) — blueprint selector UI + simulation viewer
+├── core/           All Python, one uv env (pyproject.toml here)
+│   ├── main.py          FastAPI + Modal backend — the orchestration API
+│   ├── orchestration/   LangGraph state machine (plan → assign → dispatch → monitor → replan)
+│   │   └── mujoco_adapter.py   RoverEnvAdapter: bridges robot_env to the Brain's EnvInterface
+│   ├── robot_env/       Mars MuJoCo sim — differential-drive rover + HUD RobotBridge
+│   └── tests/           smoke_test.py — end-to-end integration check
+└── robot_training/ Git submodule — worldsim-template RL toolkit (Newton physics, VLA eval, recording)
 ```
 
-### `web/frontend`
+All the Python — the backend (`main.py`), the Brain (`orchestration/`), and the sim
+(`robot_env/`) — shares one env under `core/`, because the API runs the Brain and the
+adapter imports the sim in-process. The Modal *container* still gets its deps from
+`image.pip_install(...)` in `main.py`; `core/pyproject.toml` is the local/dev env.
+`frontend/` is a standalone Next.js app; `robot_training` is a submodule with its own env.
+
+### `frontend`
 
 Next.js 15 / TypeScript / Tailwind CSS.
 
@@ -28,23 +38,82 @@ The landing page renders a grid of Mars construction blueprint cards (habitat do
 - `src/components/BlueprintCard.tsx` — card component
 - `src/data/blueprints.ts` — preset definitions
 
-### `web/backend`
+### `core/main.py` (the backend)
 
-Python 3.11 / FastAPI / [Modal](https://modal.com), managed by `uv`.
+Python 3.12 / FastAPI / [Modal](https://modal.com), managed by `uv` (shares `core/`'s env).
 
-Receives blueprint selections from the frontend, spawns an AI agent on Modal that configures and launches the physics simulation, and exposes status/stream endpoints back to the UI.
+Receives blueprint selections from the frontend, spawns the orchestration agent on Modal,
+and exposes status/stream endpoints back to the UI. Single-file Modal app (defines
+`/simulation/start`, `/simulation/{id}`, `/simulation/{id}/stream`, `/blueprints`).
 
-**Key files**
-- `main.py` — Modal ASGI app wrapping FastAPI; defines `/simulation/start` and `/simulation/:id`
-- `agent.py` — Modal function stub for the construction agent (MuJoCo orchestration TODO)
+### `core/orchestration` (the Brain)
+
+LangGraph state machine that plans a build and dispatches it to a sim. Flow:
+`init → coordinate → validate → dispatch → monitor → check_done`, looping back through
+`replan` on failure. It parses a JSON blueprint into a dependency-ordered task graph,
+assigns each task to a robot (greedy or LLM coordinator), and calls the env one Action
+at a time. It talks to any sim through one seam — the `EnvInterface` Protocol
+(`reset()` / `step(action) -> (obs, reward, done, info)`) in `env_interface.py`.
+
+### `core/robot_env` (the live MuJoCo sim)
+
+A self-contained MuJoCo scene (`mars_scene.xml`): Mars terrain + a differential-drive
+rover (box chassis, 4 hinged wheels, 4 motor actuators) on a flat drive plane.
+`MarsMujocoBridge` (`hud_mujoco_bridge.py`) is a HUD `RobotBridge` — actions are
+`[forward_speed, turn_speed]`, observations are an RGB frame + an 8-vector state
+`[x, y, z, yaw, vx, vy, vz, yaw_rate]`, and it scores a **drive-to-goal** task (dense
+progress reward + arrival bonus). This is the canonical env for both the demo and RL.
 
 ### `robot_training`
 
 Git submodule → [`hud-evals/worldsim-template`](https://github.com/hud-evals/worldsim-template)
 
-Newton/MuJoCo-based robotics RL environment running on the HUD SDK. Contains four manipulation tasks (`move-object`, `pick-object`, `force-grasp`, `open-drawer`) plus VLA policy eval infrastructure. The construction agent in `web/backend/agent.py` will delegate simulation tasks here.
+Newton/MuJoCo robotics RL toolkit on the HUD SDK (four manipulation tasks + VLA policy
+eval + dataset recording). We keep it as the **RL training/eval reference** — `run_vla.py`,
+`hud eval`, and the recording pipeline — not as the sim we ship.
 
-Requires Python 3.12 and a HUD API key. See `robot_training/README.md` for full setup and task documentation.
+Requires Python 3.12 and a HUD API key. See `robot_training/README.md` for full docs.
+
+---
+
+## How Everything Connects
+
+```
+blueprint (JSON)
+   │
+   ▼
+core/orchestration (the Brain)        core/robot_env (MuJoCo)
+  parse → task graph                    mars_scene.xml  ← differential-drive rover
+  coordinate (greedy / LLM)                  │
+  validate                              MarsMujocoBridge  ← reward + [fwd,turn] control
+  dispatch ──Action(command,target)──►  RoverEnvAdapter   (core/orchestration/mujoco_adapter.py)
+  monitor ◄──(obs, reward, info)─────►     │  grid cell → world metres
+  replan on failure                        │  Action → drive-to-target maneuver
+                                           ▼
+                                     rover drives to the cell; place/weld/excavate
+                                     marks it built; unreachable → rejection_reason → replan
+```
+
+- **The Brain plans for a fleet; the sim has one rover.** The adapter treats that rover
+  as the shared embodiment — it executes each dispatched Action in order, driving to the
+  task's grid cell. Fleet positions live in the Brain's registry, not the sim.
+- **One seam, two consumers.** `MarsMujocoBridge` is the single physics core. The Brain
+  drives it through `RoverEnvAdapter` (the `EnvInterface`); a VLA policy / `hud eval`
+  drives it through HUD's `RobotEndpoint` — same sim, same reward, two front doors.
+
+Run the Brain end-to-end against the rover (from `core/`, no LLM key needed —
+`cd core && uv run python - <<'PY'`):
+
+```python
+from orchestration.mujoco_adapter import RoverEnvAdapter
+from orchestration.graph import run_orchestration
+from orchestration.contracts import RobotRegistry, Robot
+
+registry = RobotRegistry(robots=[...])  # the default 6-robot fleet
+env = RoverEnvAdapter(render=False)
+final = run_orchestration("habitat-dome", env=env, registry=registry, coordinator_mode="greedy")
+print(final["done"], final["step"])     # True 14
+```
 
 ---
 
@@ -63,7 +132,7 @@ git submodule update --init --recursive
 ### 1. Frontend
 
 ```bash
-cd web/frontend
+cd frontend
 make install   # npm install
 make dev       # starts Next.js on http://localhost:3000
 ```
@@ -77,33 +146,27 @@ Copy `.env.local.example` to `.env.local` and set `NEXT_PUBLIC_API_URL` if the b
 | `make lint` | Run ESLint |
 | `make clean` | Remove `.next/` and `node_modules/` |
 
-### 2. Backend
+### 2. Core (backend + Brain + MuJoCo sim)
 
-Requires Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
-
-```bash
-cd web/backend
-make install   # uv sync
-make dev       # FastAPI on http://localhost:8000 with --reload
-```
-
-To deploy to Modal:
+Requires Python 3.12 and [`uv`](https://docs.astral.sh/uv/). One env covers the FastAPI/Modal
+backend, the orchestration Brain, and the rover sim. Copy `.env.example` to `.env` and fill in
+your Fireworks key and Modal credentials.
 
 ```bash
-# Authenticate once
-modal token new
+cd core
+make install                     # uv sync — creates core/.venv from pyproject.toml
+make test                        # end-to-end smoke check (no HUD/LLM key needed)
+make dev                         # FastAPI on http://localhost:8000 with --reload
 
-make deploy    # modal deploy main.py
+modal token new && make deploy   # authenticate once, then deploy the Modal app
 ```
-
-Copy `.env.example` to `.env` and fill in your Modal credentials and frontend origin.
 
 | Command | Description |
 |---|---|
+| `make test` | End-to-end smoke test (bridge + controller + Brain ↔ rover) |
 | `make dev` | Local FastAPI server with auto-reload |
 | `make deploy` | Deploy to Modal |
-| `make lint` | Ruff lint |
-| `make format` | Ruff format |
+| `make lint` / `make format` | Ruff lint / format |
 | `make check` | Pyright type check |
 | `make clean` | Remove `.venv/`, `__pycache__/`, caches |
 
@@ -125,6 +188,59 @@ python examples/example_agent.py
 ```
 
 See `robot_training/README.md` for the full task list, VLA policy eval, and scene authoring guide.
+
+---
+
+## Testing
+
+Everything under `core/` runs from one uv env — `cd core && uv sync` once
+(creates `core/.venv` from `core/pyproject.toml`).
+
+### End-to-end (orchestration ↔ rover)
+
+`core/tests/smoke_test.py` is the one command that exercises the whole integration: the
+bridge reward, the rover controller, and the Brain driving the rover through a full
+build. No HUD or LLM key — it uses the greedy coordinator.
+
+```bash
+cd core
+uv run python tests/smoke_test.py
+```
+
+Expected output (exits non-zero on any failure):
+
+```
+[test_bridge_reward]
+  bridge reward: reached target, reward=+5.78  OK
+[test_controller_reaches_targets]
+  controller: 6/6 targets reached  OK
+[test_brain_drives_rover]
+  brain e2e: build complete in 14 steps  OK
+
+All smoke checks passed.
+```
+
+### robot_env (the MuJoCo sim alone)
+
+```bash
+cd core
+uv run python robot_env/hud_mujoco_bridge.py --steps 8        # bridge smoke (no display)
+uv run mjpython robot_env/simulate_rover.py --autopilot       # watch the rover drive (needs a display)
+```
+
+### robot_training (the RL toolkit)
+
+```bash
+cd robot_training && source .venv/bin/activate
+python scripts/check_setup.py        # boots the sim + grades one scripted rollout (~1 min first run)
+```
+
+### Backend / frontend
+
+```bash
+cd core     && make lint && make check   # ruff + pyright (backend + Brain + sim)
+cd frontend && make lint                 # eslint
+```
 
 ---
 
