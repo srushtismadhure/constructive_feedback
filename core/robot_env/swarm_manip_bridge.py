@@ -32,6 +32,7 @@ except ImportError:  # allow importing without hud installed (e.g. shape checks)
 from hud_arm_bridge import CAMERA_HEIGHT, CAMERA_WIDTH
 from rover_nav import RoverDriveController
 from run_swarm_demo import (
+    STAGING_TOL,  # track the demo's nav tolerance (loosened + paired with stall recovery)
     STOW_CLOSED,
     STOW_OPEN,
     _dome_staging_for_target,
@@ -50,11 +51,11 @@ ACTION_NAMES = ["d_yaw", "d_shoulder", "d_elbow", "d_wrist", "gripper"]
 # (record_dataset.SWARM_SECTOR_NAMES[0]) so train/infer instructions are identical.
 PROMPT = "Pick a crimson block from the pile and place it on the south wedge of the dome."
 
-STAGING_TOL = 0.07          # tight final approach so the arm has a stable origin
 APPROACH_REF = 0.30         # m; EE-to-cube distance that maps to zero approach credit
 PICK_CAP = 90               # max policy steps to achieve a grasp before the pick fails
 PLACE_CAP = 90              # max policy steps to release after a grasp
 DRIVE_CAP = 4000            # max physics ticks for one scripted nav leg
+STALL_THRESHOLD = 800       # ticks before snapping the chassis to goal (matches RoverAgent)
 
 # The HUD per-rover contract: 5-DoF arm action, ONE camera, 9-dim proprio state.
 # No baked stats — the policy self-normalizes from its dataset (like hud_arm_bridge).
@@ -185,12 +186,19 @@ class SwarmManipBridge(RobotBridge):
     def _drive_to(self, goal_xy, arm_action: np.ndarray) -> bool:
         """Scripted nav leg: drive rover 0 to goal_xy holding ``arm_action`` on the
         arm (open before grasp, closed while carrying). Physics advances via the
-        bridge so grasp/carry bookkeeping stays consistent."""
-        for _ in range(DRIVE_CAP):
+        bridge so grasp/carry bookkeeping stays consistent. Mirrors RoverAgent's
+        stall recovery: if the rover can't reach the goal (wheel/contact edge case),
+        snap its chassis there so the arm always starts from a stable, in-reach pose."""
+        for tick in range(DRIVE_CAP):
             if self.nav.at_goal(goal_xy, tol=STAGING_TOL):
                 self.nav.stop()
                 self._arm_step(arm_action)  # one settle tick
                 return True
+            if tick and tick % STALL_THRESHOLD == 0:
+                qa, qv = self.nav.qposadr, self.nav.qveladr
+                self.bridge.data.qpos[qa] = goal_xy[0]
+                self.bridge.data.qpos[qa + 1] = goal_xy[1]
+                self.bridge.data.qvel[qv:qv + 6] = 0.0
             self.nav.step_drive(goal_xy)
             self._arm_step(arm_action)
         self.nav.stop()

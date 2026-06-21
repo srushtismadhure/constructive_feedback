@@ -138,7 +138,7 @@ def filter_and_relabel(chunk_fn: ChunkFn, seeds: list[int],
 def write_dataset(frames: list[dict], repo_id: str, root: str, fps: int = 10):
     import shutil
 
-    from record_dataset import _features, _swarm_spec
+    from record_dataset import _add_frame, _features, _swarm_spec
     try:
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
     except ImportError:
@@ -151,17 +151,35 @@ def write_dataset(frames: list[dict], repo_id: str, root: str, fps: int = 10):
     ds = LeRobotDataset.create(repo_id=repo_id, fps=fps, features=_features(spec),
                                robot_type=spec.robot_type, root=str(target), use_videos=True)
     for frame in frames:
-        ds.add_frame(frame)
+        _add_frame(ds, frame)
     ds.save_episode()
     ds.finalize()
     return str(ds.root)
 
 
 # ── the loop ──────────────────────────────────────────────────────────────────
+def _free_gpu() -> None:
+    """Release the in-process rollout policy's GPU memory. Each iteration loads a fresh
+    4B pi0.5 for rollouts in THIS process; without freeing it, the cached allocator keeps
+    it across iterations and, stacked with the training subprocess (~40GB), OOMs an 80GB
+    A100 by iter 2. Called after rollouts, before the training subprocess."""
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
 def load_policy_chunk_fn(checkpoint: str, device: str = "cuda") -> ChunkFn:
     """In-process pi0.5 chunk fn (GPU). Mirrors serve/build_mars_infer but returns the
     [HORIZON, 5] chunk directly (no websocket)."""
-    sys.path.insert(0, str(ROBOT_ENV / "serve"))
+    # Derive the serve/ dir from where swarm_manip_bridge actually lives (robust on Modal,
+    # where the entrypoint mounts at /root and __file__-relative paths don't hold).
+    import swarm_manip_bridge
+    sys.path.insert(0, str(Path(swarm_manip_bridge.__file__).resolve().parent / "serve"))
     from policy_server_mars import build_mars_infer
 
     infer = build_mars_infer(checkpoint, device=device, horizon=HORIZON)
@@ -175,20 +193,24 @@ def load_policy_chunk_fn(checkpoint: str, device: str = "cuda") -> ChunkFn:
 
 def run_loop(base_checkpoint: str, dataset_repo: str, iters: int, group: int,
              threshold: float, sft_steps: int, sft_fn) -> list[float]:
-    """sft_fn(prev_ckpt, dataset_repo, steps) -> new_ckpt. Returns the per-iter mean reward."""
+    """sft_fn(prev_ckpt, ds_repo, ds_root, steps, it) -> new_ckpt. Returns per-iter mean reward."""
     seeds = list(range(group))
     ckpt = base_checkpoint
     curve: list[float] = []
     for it in range(iters):
         chunk_fn = load_policy_chunk_fn(ckpt)
         frames, rewards = filter_and_relabel(chunk_fn, seeds, threshold)
+        chunk_fn = None  # drop the rollout policy before training so the GPU isn't double-booked
+        _free_gpu()
         mean_r = float(np.mean(rewards))
         curve.append(mean_r)
         print(f"[rl] iter {it}: mean reward={mean_r:.4f}  rewards={[round(r,3) for r in rewards]}  "
               f"train frames={len(frames)}", flush=True)
         root = f"/tmp/lerobot/{dataset_repo.replace('/', '__')}-it{it}"
         write_dataset(frames, dataset_repo, root)
-        ckpt = sft_fn(ckpt, dataset_repo, root, sft_steps)
+        # `it` gives each SFT its own output dir, so clearing it never deletes the prior
+        # checkpoint this iteration loads from (prev iters live in their own it{n} dirs).
+        ckpt = sft_fn(ckpt, dataset_repo, root, sft_steps, it)
     print(f"[rl] reward curve: {[round(c, 4) for c in curve]}", flush=True)
     return curve
 
@@ -222,42 +244,81 @@ def _dry_run(group: int, threshold: float) -> None:
 # Defined at module level (modal is a base dep); only exercised by `modal run`.
 import modal  # noqa: E402
 
-_LEROBOT = "lerobot @ git+https://github.com/huggingface/lerobot.git@b8ad81bf397d59dda69ccfc7e74e847f0a9d4fbf"
+_LEROBOT = "lerobot[training,pi] @ git+https://github.com/huggingface/lerobot.git@b8ad81bf397d59dda69ccfc7e74e847f0a9d4fbf"
 _CORE = Path(__file__).resolve().parents[1]
 
+# See sft_modal._TRAIN_WRAPPER: run lerobot_train but force fresh processors (pi05_base's
+# saved processor uses a step name this pinned lerobot renamed). Weights still load.
+_TRAIN_WRAPPER = '''\
+import lerobot.policies.factory as F
+import lerobot.scripts.lerobot_train as T
+_orig = F.make_pre_post_processors
+def _fresh(policy_cfg, pretrained_path=None, **kw):
+    return _orig(policy_cfg, pretrained_path=None, **kw)
+F.make_pre_post_processors = _fresh
+T.make_pre_post_processors = _fresh
+T.main()
+'''
+
+# No hud here: the RL loop drives SwarmManipBridge directly and runs pi0.5 inference via
+# lerobot (build_mars_infer is hud-free), so the image is lerobot+mujoco only — avoiding
+# the openpi-client(numpy<2) vs lerobot(numpy>=2) conflict. MUJOCO_GL=osmesa renders the
+# rover camera headlessly (software, no GPU display needed).
 _image = (
     modal.Image.debian_slim(python_version="3.12")
-    .apt_install("git", "ffmpeg", "libgl1", "libglib2.0-0")
+    .apt_install("git", "ffmpeg", "libgl1", "libglib2.0-0", "libosmesa6")
     .pip_install(
-        _LEROBOT, "hud-python[robot]",
+        _LEROBOT,
         "torch", "transformers", "accelerate", "safetensors", "huggingface_hub",
-        "mujoco>=3.2.0", "numpy", "pillow", "scipy", "trimesh", "websockets", "einops",
+        "mujoco>=3.2.0", "numpy>=2.0,<2.3", "pillow", "scipy", "trimesh", "einops",
     )
     .add_local_dir(str(_CORE / "robot_env"), "/root/robot_env", copy=True)
     .add_local_dir(str(_CORE / "train"), "/root/train", copy=True)
-    .env({"HF_HOME": "/cache", "MUJOCO_GL": "egl", "PYTHONPATH": "/root/robot_env:/root/train"})
+    .env({"HF_HOME": "/cache", "MUJOCO_GL": "osmesa",
+          "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+          "PYTHONPATH": "/root/robot_env:/root/train"})
 )
 _app = modal.App("mars-swarm-rl")
 _cache = modal.Volume.from_name("mars-swarm-pi05-cache", create_if_missing=True)
 _hf = modal.Secret.from_name("huggingface-secret")
 
 
-@_app.function(image=_image, gpu="A100", timeout=12 * 3600,
+@_app.function(image=_image, gpu="A100-80GB", timeout=12 * 3600,
                volumes={"/cache": _cache}, secrets=[_hf])
 def rl_train(base_checkpoint: str, dataset_repo: str, output_repo: str, iters: int = 3,
              group: int = 2, threshold: float = 0.999, sft_steps: int = 500) -> list[float]:
     import subprocess
     import sys as _sys
 
-    def sft_fn(prev_ckpt: str, ds_repo: str, ds_root: str, steps: int) -> str:
-        out = f"/cache/rl_ckpt/{output_repo.replace('/', '__')}"
-        subprocess.run([
-            _sys.executable, "-m", "lerobot.scripts.train",
+    wrapper = "/cache/lerobot_train_fresh.py"
+    with open(wrapper, "w") as f:
+        f.write(_TRAIN_WRAPPER)
+
+    def sft_fn(prev_ckpt: str, ds_repo: str, ds_root: str, steps: int, it: int) -> str:
+        import shutil
+        # Per-iteration dir: clearing it{it} must NOT delete prev_ckpt (which lives in
+        # it{it-1}), otherwise --policy.pretrained_path points at a deleted dir and lerobot
+        # silently trains from scratch.
+        out = f"/cache/rl_ckpt/{output_repo.replace('/', '__')}/it{it}"
+        shutil.rmtree(out, ignore_errors=True)  # lerobot refuses an existing output_dir
+        import collections
+        proc = subprocess.Popen([
+            _sys.executable, wrapper,
             f"--dataset.repo_id={ds_repo}", f"--dataset.root={ds_root}",
+            # Derive features from the dataset (our embodiment), load prior weights.
             "--policy.type=pi05", f"--policy.pretrained_path={prev_ckpt}",
-            f"--output_dir={out}", f"--steps={steps}", "--batch_size=8",
-            f"--save_freq={steps}", "--policy.device=cuda", "--wandb.enable=false",
-        ], check=True)
+            f"--output_dir={out}", f"--steps={steps}", "--batch_size=4",
+            f"--save_freq={steps}", "--policy.device=cuda",
+            # Freeze the VLM, train only the action expert (fits the GPU; see sft_modal).
+            "--policy.train_expert_only=true", "--policy.gradient_checkpointing=true",
+            "--policy.push_to_hub=false", "--wandb.enable=false",
+        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        tail: collections.deque[str] = collections.deque(maxlen=80)
+        for line in proc.stdout:
+            print(line, end="", flush=True)
+            tail.append(line)
+        if proc.wait() != 0:
+            raise RuntimeError("lerobot train failed. Last 80 lines:\n" + "".join(tail))
         cands = sorted(Path(out).rglob("pretrained_model"), key=lambda p: p.stat().st_mtime)
         if not cands:
             raise RuntimeError(f"no checkpoint produced under {out}")

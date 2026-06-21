@@ -113,6 +113,25 @@ def _features(spec: RecordSpec) -> dict:
     }
 
 
+def _add_frame(ds, frame: dict) -> None:
+    """Version-robust add_frame: newer lerobot wants `task` as a kwarg (and rejects it
+    as a frame key); older lerobot wants it inside the frame dict. The caller always
+    puts the prompt under frame['task']; we route it to whichever API this lerobot has."""
+    task = frame.pop("task")
+    try:
+        ds.add_frame(frame, task=task)
+    except TypeError:
+        ds.add_frame({**frame, "task": task})
+
+
+def _finalize(ds) -> None:
+    """lerobot >=0.4 needs an explicit finalize() to flush episode metadata; lerobot
+    0.3.x consolidates inside save_episode() and has no finalize(). Call it if present."""
+    fn = getattr(ds, "finalize", None)
+    if callable(fn):
+        fn()
+
+
 def _count_str(res: dict) -> str:
     if "placed_count" in res:
         return f"placed={res['placed_count']}/20"
@@ -196,12 +215,11 @@ def _record(spec: RecordSpec, repo_id: str, episodes: int, seed0: int, fps: int,
     bridge = spec.make_bridge(True)
     for ep in range(episodes):
         def on_frame(image, state, godmode, action, prompt):
-            # lerobot >=0.4: `task` is a reserved key inside the frame dict (no kwarg).
-            ds.add_frame({"observation.image": image,
-                          "observation.state": state,
-                          "godmode": godmode,
-                          "action": action,
-                          "task": prompt})
+            _add_frame(ds, {"observation.image": image,
+                            "observation.state": state,
+                            "godmode": godmode,
+                            "action": action,
+                            "task": prompt})
         res = asyncio.run(_collect_episode(bridge, spec, seed0 + ep, on_frame))
         ds.save_episode()
         print(f"  episode {ep}: {_count_str(res)} saved")
@@ -210,7 +228,7 @@ def _record(spec: RecordSpec, repo_id: str, episodes: int, seed0: int, fps: int,
     # REQUIRED before push: flushes the buffered episode metadata (meta/episodes/*.parquet)
     # and consolidates. Skipping it uploads an incomplete dataset — HF's viewer then fails
     # with "Parquet magic bytes not found" — and leaves the flush to a failing __del__.
-    ds.finalize()
+    _finalize(ds)
 
     print(f"\nLeRobot v3 dataset written: {ds.root}")
     if push:
@@ -311,7 +329,7 @@ def _dry_run_swarm(spec: RecordSpec, cubes_per_rover: int, seed: int) -> None:
                          state=state.shape, godmode=godmode.shape, action=action.shape, task=prompt)
 
     res = _collect_swarm(spec, cubes_per_rover, seed, on_frame)
-    print(f"  build: placed={res['placed_count']}/{res['total_waypoints']} success={res['success']}")
+    print(f"  build: placed={res['placed_count']}/{res['total_waypoints']} ok={res['success']}")
     print(f"  per-rover manip frames: {per_rover}  (one episode each)")
     print(f"\nfirst frame: {first}")
     print(f"total frames: {sum(per_rover.values())}  (features: {list(_features(spec))})")
@@ -328,7 +346,7 @@ def _record_swarm(spec: RecordSpec, repo_id: str, cubes_per_rover: int, seed: in
         try:
             from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
         except ImportError as exc:
-            raise SystemExit("lerobot not installed. From core/: `uv sync --extra record`.") from exc
+            raise SystemExit("lerobot not installed. Run: uv sync --extra record") from exc
 
     target = Path(root) if root else Path("/tmp/lerobot") / repo_id
     if target.exists():
@@ -352,14 +370,14 @@ def _record_swarm(spec: RecordSpec, repo_id: str, cubes_per_rover: int, seed: in
                                    "godmode": godmode, "action": action, "task": prompt})
 
     res = _collect_swarm(spec, cubes_per_rover, seed, on_frame)
-    print(f"  build: placed={res['placed_count']}/{res['total_waypoints']} success={res['success']}")
+    print(f"  build: placed={res['placed_count']}/{res['total_waypoints']} ok={res['success']}")
     for rover_idx in range(NUM_ROVERS):
         for frame in buffers[rover_idx]:
-            ds.add_frame(frame)
+            _add_frame(ds, frame)
         ds.save_episode()
         print(f"  rover {rover_idx} ({SWARM_SECTOR_NAMES[rover_idx]}): "
               f"{len(buffers[rover_idx])} frames saved as episode {rover_idx}")
-    ds.finalize()
+    _finalize(ds)
 
     print(f"\nLeRobot v3 dataset written: {ds.root}")
     if push:

@@ -22,9 +22,6 @@ import asyncio
 from typing import Any, Callable
 
 import numpy as np
-import websockets.asyncio.server as wss
-import websockets.exceptions
-from openpi_client import msgpack_numpy
 
 # The swarm rover's single camera, mapped onto the policy's first image slot.
 ENV_IMAGE_KEYS = ["observation/image"]
@@ -36,6 +33,13 @@ InferFn = Callable[[dict[str, Any]], dict[str, Any]]
 async def serve_openpi(host: str, port: int, infer: InferFn, *,
                        metadata: dict | None = None) -> None:
     """Serve `infer` over the openpi/0 websocket forever (one inference per request)."""
+    # openpi-client + websockets are imported here (not at module top) so build_mars_infer
+    # can be imported with lerobot alone — the RL loop's in-process inference doesn't use
+    # the wire, and openpi-client's numpy<2 cap conflicts with lerobot's numpy>=2.
+    import websockets.asyncio.server as wss
+    import websockets.exceptions
+    from openpi_client import msgpack_numpy
+
     packer = msgpack_numpy.Packer()
 
     async def handler(ws: Any) -> None:
@@ -62,8 +66,10 @@ def build_mars_infer(checkpoint: str, device: str | None = None, horizon: int = 
     chunk to the first 5 action dims (the arm delta) and to `horizon` steps so the client
     replans every `horizon` ticks.
     """
+    # hud-free (direct lerobot): the inference is exactly hud's LeRobotModel.infer —
+    # postprocess(predict_action_chunk(preprocess(batch))) — so the serve/RL images need
+    # lerobot only, not hud[robot] (whose openpi-client caps numpy<2 vs lerobot's >=2).
     import torch
-    from hud.agents.robot.model import LeRobotModel
     from lerobot.policies.factory import make_pre_post_processors
     from lerobot.policies.pi05.modeling_pi05 import PI05Policy
 
@@ -74,7 +80,6 @@ def build_mars_infer(checkpoint: str, device: str | None = None, horizon: int = 
         policy.config, checkpoint,
         preprocessor_overrides={"device_processor": {"device": device}},
     )
-    model = LeRobotModel(policy, preprocess, postprocess)
     image_keys = list(policy.config.image_features)  # model slots in contract order
 
     def infer(obs: dict[str, Any]) -> dict[str, Any]:
@@ -86,7 +91,9 @@ def build_mars_infer(checkpoint: str, device: str | None = None, horizon: int = 
         for model_key, env_key in zip(image_keys, ENV_IMAGE_KEYS, strict=False):
             img = torch.from_numpy(np.asarray(obs[env_key])).permute(2, 0, 1).float() / 255.0
             batch[model_key] = img
-        chunk = model.infer(batch)[0, :horizon, :ARM_ACTION_DIM]  # [N,T,A] -> [horizon, 5]
+        with torch.no_grad():
+            chunk = postprocess(policy.predict_action_chunk(preprocess(batch)))
+        chunk = chunk.float().cpu().numpy()[0, :horizon, :ARM_ACTION_DIM]  # [N,T,A] -> [h,5]
         return {"actions": np.asarray(chunk, dtype=np.float32)}
 
     return infer

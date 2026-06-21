@@ -13,13 +13,19 @@ expert-relabel the failures, re-SFT, repeat.
 
 All commands run from `core/`. Everything lives under `core/` (`robot_env/`, `train/`).
 
+The following are saved datasets/checkpoints from training during the hackathon:
+- https://huggingface.co/datasets/changminbark/mars-construction-swarm
+- https://huggingface.co/changminbark/pi05-mars-swarm-sft
+- https://huggingface.co/changminbark/pi05-mars-swarm-rl
+
 ## Prerequisites
 
 ```bash
 cd core
-uv sync --extra robot --extra serve         # hud + openpi/0 wire (no torch) — for env/eval
-# torch/lerobot are only needed where training/inference actually runs (Modal images
-# install them). For LOCAL recording/training add: uv sync --extra record
+# Sync ALL the extras you need in ONE command — `uv sync --extra X` is NOT additive,
+# so a later `uv sync --extra record` would drop hud and break the eval/wire commands.
+uv sync --extra robot --extra serve --extra record   # hud + openpi/0 wire + lerobot
+# Minimal env/eval only (no torch/lerobot): uv sync --extra robot --extra serve
 ```
 
 Remote (Modal A100) needs a Modal account and an HF token secret:
@@ -50,7 +56,6 @@ uv run python train/rl_loop.py --dry-run --group 2
 ### 1. Record the dataset (Path B: one episode per rover)
 
 ```bash
-uv sync --extra record    # pulls lerobot + torch
 uv run python robot_env/record_dataset.py --robot swarm --cubes-per-rover 4 \
     --repo-id <user>/mars-construction-swarm --push
 ```
@@ -63,7 +68,7 @@ in a separate `godmode` column. Validate first with `--dry-run` (no lerobot need
 Deliberately **under-train** for the demo so the baseline lands below the oracle.
 
 ```bash
-modal run core/train/sft_modal.py \
+modal run train/sft_modal.py \
     --dataset-repo <user>/mars-construction-swarm \
     --output-repo  <user>/pi05-mars-swarm-sft \
     --steps 2000
@@ -75,7 +80,7 @@ Trains from `lerobot/pi05_base`, uploads the checkpoint to `<user>/pi05-mars-swa
 
 ```bash
 # terminal A: serve on a Modal A100 (prints ws://HOST:PORT, stays up)
-modal run core/robot_env/serve/pi05_modal_mars.py --checkpoint <user>/pi05-mars-swarm-sft
+modal run robot_env/serve/pi05_modal_mars.py --checkpoint <user>/pi05-mars-swarm-sft
 
 # terminal B: run the sim + loop here (CPU-only), point at that HOST:PORT
 uv run python robot_env/run_swarm_vla.py --remote HOST:PORT --group 4
@@ -89,9 +94,9 @@ One A100 container runs the whole loop — policy inference **and** lerobot retr
 iteration (no cross-machine tunnel to manage):
 
 ```bash
-modal run core/train/rl_loop.py \
+modal run train/rl_loop.py \
     --base-checkpoint <user>/pi05-mars-swarm-sft \
-    --dataset-repo    <user>/mars-construction-swarm-rl \
+    --dataset-repo    <user>/mars-construction-swarm \
     --output-repo     <user>/pi05-mars-swarm-rl \
     --iters 3 --group 2 --sft-steps 500
 ```
@@ -105,7 +110,7 @@ final checkpoint to `<user>/pi05-mars-swarm-rl`.
 Same as step 3, pointing the server at the RL checkpoint:
 
 ```bash
-modal run core/robot_env/serve/pi05_modal_mars.py --checkpoint <user>/pi05-mars-swarm-rl
+modal run robot_env/serve/pi05_modal_mars.py --checkpoint <user>/pi05-mars-swarm-rl
 uv run python robot_env/run_swarm_vla.py --remote HOST:PORT --group 4
 ```
 
@@ -145,9 +150,30 @@ core/
 
 - **Determinism is intentional.** Grouped rollouts are identical, so RL can't exceed the
   oracle; the demo works by under-training SFT and letting the loop close the gap.
-- **lerobot CLI flags** in `sft_modal.py` / `rl_loop.py` target the pinned lerobot commit
-  (`b8ad81b…`); adjust if you bump lerobot. Checkpoints are uploaded via `huggingface_hub`
-  (version-independent of lerobot's push flags).
-- The single-camera inference path (`build_mars_infer`) mirrors the franka
-  `build_pi05_infer` in `robot_training/serve/` — it maps `observation/image` onto the
-  policy's first image slot and truncates the action chunk to the 5 arm dims.
+- **lerobot is pinned to one commit everywhere** (`b8ad81b…`, lerobot 0.5.2) — local
+  (`core/pyproject.toml`, the `record`/`vla` extras) and the Modal images — so the dataset
+  is written and read by the same version. The training entrypoint is
+  `python -m lerobot.scripts.lerobot_train` (0.5.x renamed it from `lerobot.scripts.train`),
+  with the `[training,pi]` extras for the `datasets`/policy deps. Checkpoints upload via
+  `huggingface_hub` (version-independent of lerobot's push flags). If you bump lerobot,
+  re-check the entrypoint + flags and re-record the dataset.
+- **numpy is forced to 2.x** (`[tool.uv] override-dependencies`): the pinned lerobot needs
+  `numpy>=2.0`, hud's openpi-client caps `<2.0`, but that cap is conservative (verified: the
+  no-op wire-check runs fine on numpy 2.2). This lets hud + lerobot share one local env.
+- **Modal image deps are split to avoid that numpy conflict on pip** (which, unlike uv,
+  has no override): `sft_modal` = lerobot only; `rl_loop` = lerobot + mujoco, **no hud**
+  (it drives the bridge directly and runs `build_mars_infer`, which is hud-free); the
+  serve image = lerobot + `openpi-client` installed `--no-deps` so its numpy<2 cap is
+  skipped (the codec runs fine on numpy 2.x). `build_mars_infer` is plain lerobot
+  (`postprocess(predict_action_chunk(preprocess(batch)))`), no hud.
+- **SFT uses `--policy.type=pi05 --policy.pretrained_path=pi05_base`** (derive features
+  from our 1-cam/9-state/5-action dataset; load base weights) run through a wrapper that
+  forces **fresh processors** — pi05_base's saved processor uses a step name this lerobot
+  renamed, so loading it would KeyError; we build fresh from the policy config instead.
+- **Headless rendering on Modal**: `rl_loop` sets `MUJOCO_GL=osmesa` (+ `libosmesa6`) so the
+  rover camera renders without a display.
+- **Memory**: pi05 is 4B params, so a full finetune's optimizer states alone exceed a 40GB
+  A100. Both training paths use `--policy.train_expert_only=true` (freeze the PaliGemma VLM,
+  train only the ~300M action expert + projections — the right way to finetune pi05 on a new
+  embodiment) + `--policy.gradient_checkpointing=true`, on an **A100-80GB**, batch size 4,
+  with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.

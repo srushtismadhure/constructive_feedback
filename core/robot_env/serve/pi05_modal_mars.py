@@ -21,17 +21,23 @@ PORT = 8000
 CACHE = "/cache"  # HF cache (checkpoints + processors), Volume-backed so it persists
 
 # lerobot pinned to a commit with pi05 (PyPI 0.5.1 lacks it), matching robot_training.
-_LEROBOT = "lerobot @ git+https://github.com/huggingface/lerobot.git@b8ad81bf397d59dda69ccfc7e74e847f0a9d4fbf"
+_LEROBOT = "lerobot[pi] @ git+https://github.com/huggingface/lerobot.git@b8ad81bf397d59dda69ccfc7e74e847f0a9d4fbf"
 _SERVE_DIR = Path(__file__).resolve().parent
 
+# No hud here: build_mars_infer is hud-free (lerobot only), and the openpi/0 wire needs
+# just the standalone `openpi-client` codec. lerobot pins numpy>=2 while openpi-client
+# caps numpy<2, so openpi-client is installed with --no-deps (its other deps are listed
+# explicitly) and runs on numpy 2.x (verified) — avoiding an unsatisfiable pip resolve.
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("git", "ffmpeg")
     .pip_install(
-        "hud-python[robot]", _LEROBOT,
+        _LEROBOT,
         "torch", "transformers", "accelerate", "safetensors", "huggingface_hub",
-        "websockets", "msgpack", "pillow", "scipy", "einops",
+        "numpy>=2.0,<2.3", "websockets>=11.0", "msgpack>=1.0.5", "msgpack-numpy",
+        "dm-tree>=0.1.8", "pillow", "scipy", "einops",
     )
+    .run_commands("python -m pip install --no-deps openpi-client")  # skip its numpy<2 cap
     .add_local_dir(str(_SERVE_DIR), "/root/serve", copy=True)
     .env({"HF_HOME": CACHE, "PYTHONPATH": "/root"})
 )

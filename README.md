@@ -285,7 +285,7 @@ uv run python robot_env/record_dataset.py --robot arm \
 uv run python robot_env/record_dataset.py --robot printer --structure tower \
     --repo-id <hf-user>/mars-print-tower --push
 
-uv run python robot_env/record_dataset.py --robot swarm --cubes-per-rover 4 \
+uv run python robot_env/record_dataset.py --robot swarm \
     --repo-id changminbark/mars-construction-swarm --push
 ```
 
