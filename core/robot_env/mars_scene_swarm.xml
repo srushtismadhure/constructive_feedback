@@ -82,7 +82,7 @@
     <!-- Mobile rover r0_ (spawn facing dome center). -->
     <body name="r0_simple_rover" pos="-0.0000 -3.0500 3.5500" quat="0.707107 0.000000 0.000000 -0.707107">
       <freejoint name="r0_rover_free"/>
-      <geom name="r0_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="3.0" contype="0" conaffinity="0"/>
+      <geom name="r0_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r0_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
       <!-- Front-down POV camera (30 deg below horizontal, pointing rover-local +x). -->
       <camera name="r0_front_cam" pos="0.30 0 0.20" quat="0.866 0 -0.5 0" fovy="60"/>
@@ -105,7 +105,7 @@
       </body>
 
       <body name="r0_pick_place_arm" pos="0 0 0.09">
-        <geom name="r0_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="2.0" contype="0" conaffinity="0"/>
+        <geom name="r0_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="5.0" contype="0" conaffinity="0"/>
         <body name="r0_arm_yaw_body" pos="0 0 0.09">
           <joint name="r0_arm_yaw" type="hinge" axis="0 0 1" range="-100 100" damping="1.2"/>
           <geom name="r0_arm_yaw_hub" type="sphere" size="0.075" material="arm_joint_mat" mass="0.4" contype="0" conaffinity="0"/>
@@ -138,7 +138,7 @@
     <!-- Mobile rover r1_ (spawn facing dome center). -->
     <body name="r1_simple_rover" pos="-2.6414 1.5250 3.5500" quat="0.258819 0.000000 0.000000 0.965926">
       <freejoint name="r1_rover_free"/>
-      <geom name="r1_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="3.0" contype="0" conaffinity="0"/>
+      <geom name="r1_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r1_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
       <!-- Front-down POV camera (30 deg below horizontal, pointing rover-local +x). -->
       <camera name="r1_front_cam" pos="0.30 0 0.20" quat="0.866 0 -0.5 0" fovy="60"/>
@@ -161,7 +161,7 @@
       </body>
 
       <body name="r1_pick_place_arm" pos="0 0 0.09">
-        <geom name="r1_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="2.0" contype="0" conaffinity="0"/>
+        <geom name="r1_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="5.0" contype="0" conaffinity="0"/>
         <body name="r1_arm_yaw_body" pos="0 0 0.09">
           <joint name="r1_arm_yaw" type="hinge" axis="0 0 1" range="-100 100" damping="1.2"/>
           <geom name="r1_arm_yaw_hub" type="sphere" size="0.075" material="arm_joint_mat" mass="0.4" contype="0" conaffinity="0"/>
@@ -194,7 +194,7 @@
     <!-- Mobile rover r2_ (spawn facing dome center). -->
     <body name="r2_simple_rover" pos="2.6414 1.5250 3.5500" quat="0.965926 0.000000 0.000000 0.258819">
       <freejoint name="r2_rover_free"/>
-      <geom name="r2_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="3.0" contype="0" conaffinity="0"/>
+      <geom name="r2_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r2_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
       <!-- Front-down POV camera (30 deg below horizontal, pointing rover-local +x). -->
       <camera name="r2_front_cam" pos="0.30 0 0.20" quat="0.866 0 -0.5 0" fovy="60"/>
@@ -217,7 +217,7 @@
       </body>
 
       <body name="r2_pick_place_arm" pos="0 0 0.09">
-        <geom name="r2_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="2.0" contype="0" conaffinity="0"/>
+        <geom name="r2_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="5.0" contype="0" conaffinity="0"/>
         <body name="r2_arm_yaw_body" pos="0 0 0.09">
           <joint name="r2_arm_yaw" type="hinge" axis="0 0 1" range="-100 100" damping="1.2"/>
           <geom name="r2_arm_yaw_hub" type="sphere" size="0.075" material="arm_joint_mat" mass="0.4" contype="0" conaffinity="0"/>
