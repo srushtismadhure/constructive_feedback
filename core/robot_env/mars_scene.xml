@@ -22,7 +22,7 @@
     <material name="arm_mat" rgba="0.62 0.68 0.72 1" shininess="0.25" specular="0.15"/>
     <material name="arm_joint_mat" rgba="0.12 0.16 0.18 1" shininess="0.25" specular="0.15"/>
     <material name="gripper_mat" rgba="0.08 0.08 0.08 1"/>
-    <material name="cube_mat" rgba="0.86 0.08 0.24 1" shininess="0.2" specular="0.1"/>
+    <material name="cube_mat" rgba="0.68 0.25 0.16 1" shininess="0.2" specular="0.1"/>
     <material name="target_mat" rgba="0.15 0.8 0.25 0.45" shininess="0.1" specular="0.05"/>
 
     <mesh name="mars_terrain" file="Mars - Spirit Landing Site_smooth.stl" scale="0.25 0.25 0.25"/>

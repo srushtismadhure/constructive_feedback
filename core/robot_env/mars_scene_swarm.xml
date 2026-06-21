@@ -22,7 +22,7 @@
     <material name="arm_mat" rgba="0.62 0.68 0.72 1" shininess="0.25" specular="0.15"/>
     <material name="arm_joint_mat" rgba="0.12 0.16 0.18 1" shininess="0.25" specular="0.15"/>
     <material name="gripper_mat" rgba="0.08 0.08 0.08 1"/>
-    <material name="cube_mat" rgba="0.86 0.08 0.24 1" shininess="0.2" specular="0.1"/>
+    <material name="cube_mat" rgba="0.68 0.25 0.16 1" shininess="0.2" specular="0.1"/>
     <material name="target_mat" rgba="0.15 0.8 0.25 0.45" shininess="0.1" specular="0.05"/>
 
     <mesh name="mars_terrain" file="Mars - Spirit Landing Site_smooth.stl" scale="0.25 0.25 0.25"/>
@@ -36,10 +36,6 @@
     <geom name="terrain_visual" type="mesh" mesh="mars_terrain" material="terrain_mat" contype="0" conaffinity="0" group="2"/>
     <geom name="terrain_collision" type="hfield" hfield="mars_heightfield" pos="4.536614 -5.097652 3.032014" rgba="0 0 0 0" contype="0" conaffinity="0" group="2"/>
     <geom name="rover_drive_plane" type="plane" pos="0 0 3.31" size="8 8 0.1" material="terrain_mat" condim="6" group="1" contype="1" conaffinity="3"/>
-
-    <!-- Dome footprint marker at origin. -->
-    <geom name="target_pad" type="cylinder" pos="0 0 3.312" size="0.30 0.004" material="target_mat" contype="0" conaffinity="0"/>
-    <site name="target_site" pos="0 0 3.39" size="0.02" rgba="0.1 1 0.2 1"/>
 
     <!-- 36-cube layout: three 2x2x3 piles, one per rover. Indices 0-11 = pile 0, 12-23 = pile 1, 24-35 = pile 2. -->
     <body name="pick_cube_0" pos="-0.060 -3.560 3.620"><freejoint name="pick_cube_0_free"/><geom name="pick_cube_0_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
