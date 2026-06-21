@@ -263,12 +263,7 @@ class RoverUnit:
             return
         cube_pos = self.data.xpos[swarm.cube_body_ids[candidate]]
         if self.gripper < 0.25 and np.linalg.norm(ee - cube_pos) <= PICK_DISTANCE:
-            self.holding = True
-            self.held_cube_idx = candidate
-            swarm.claim_pile_cube(candidate, self)
-            swarm.pile_pinned.pop(candidate, None)  # cube leaves the pile
-            swarm._set_cube_collidable(candidate, False)
-            swarm._set_cube_pose_idx(candidate, ee + HELD_OFFSET)
+            swarm.grasp_reserved_cube(self)
 
 
 class MarsSwarmBridge:
@@ -448,27 +443,59 @@ class MarsSwarmBridge:
 
     def claim_pile_cube_for(self, rover_idx: int) -> int | None:
         """Pop the next available cube from rover ``rover_idx``'s own pile and
-        reserve it for that rover."""
+        reserve it for that rover.
+
+        A reservation survives a missed grasp.  Previously a rover that missed
+        a cube would reserve a different cube on its next trip, while retaining
+        the first cube's target assignment.  That made the cube-to-slot mapping
+        drift and allowed the visual build to collapse into one location.
+        """
+        for cube_idx, owner in self.pile_pending.items():
+            if owner == rover_idx:
+                return cube_idx
+
         rover = self.rovers[rover_idx]
-        if not rover.pile_queue:
+        if not rover.pile_queue or not rover.dome_queue:
             return None
         idx = rover.pile_queue.popleft()
         self.pile_pending[idx] = rover_idx
-        # Map this cube to the rover's NEXT dome target (popped on grasp).
-        if rover.dome_queue:
-            tgt = rover.dome_queue[0]
-            self.held_cube_target[idx] = tgt
         return idx
 
     def claim_pile_cube(self, cube_idx: int, rover: RoverUnit) -> None:
         """Called by update_grasp the moment grasp triggers. Pops the dome slot
-        from the rover's queue so subsequent grasps target the next slot."""
+        from the rover's queue so subsequent grasps target the next slot.
+
+        Assigning at grasp time, rather than reservation time, makes a target
+        exclusive only once its cube is actually in a rover's gripper.
+        """
         rover_idx = self.rovers.index(rover)
-        # already reserved in claim_pile_cube_for; just consume the dome slot
-        if rover.dome_queue:
-            tgt = rover.dome_queue.popleft()
-            self.held_cube_target[cube_idx] = tgt
+        if not rover.dome_queue:
+            raise RuntimeError(f"rover {rover_idx} grasped a cube without a dome target")
+        tgt = rover.dome_queue.popleft()
+        self.held_cube_target[cube_idx] = tgt
         self.pile_pending.pop(cube_idx, None)
+
+    def grasp_reserved_cube(self, rover: RoverUnit) -> bool:
+        """Move a rover's reserved cube into its gripper.
+
+        The arm controller teleports joint positions for the scripted demo, so
+        checking one physics substep for a small Euclidean grasp radius is not
+        reliable. This operation is the deterministic completion of a planned
+        pickup and preserves the same ownership and collision transitions as a
+        naturally detected grasp.
+        """
+        if rover.holding:
+            return True
+        cube_idx = self.next_pile_cube_for(rover)
+        if cube_idx is None:
+            return False
+        rover.holding = True
+        rover.held_cube_idx = cube_idx
+        self.claim_pile_cube(cube_idx, rover)
+        self.pile_pinned.pop(cube_idx, None)
+        self._set_cube_collidable(cube_idx, False)
+        self._set_cube_pose_idx(cube_idx, rover.ee_world() + HELD_OFFSET)
+        return True
 
     # ---- pile lock helpers ----
     def acquire_pile(self, rover_idx: int) -> bool:

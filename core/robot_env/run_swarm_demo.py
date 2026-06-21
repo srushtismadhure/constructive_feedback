@@ -128,6 +128,13 @@ class RoverAgent:
                 action = self.action_queue[self.action_idx]
                 self.action_idx += 1
                 return action
+            # Do not drive an ungrasped cube toward a dome target. Keep the
+            # reservation and finish the planned pickup deterministically.
+            # The arm pose is teleported by this demo, so a single-substep
+            # proximity check is otherwise prone to missing a valid grasp.
+            if not self.unit.holding:
+                if not self.bridge.grasp_reserved_cube(self.unit):
+                    raise RuntimeError(f"rover {self.idx}: lost its reserved pile cube")
             self.state = State.DRIVING_TO_DOME
             # fall through
 
@@ -289,7 +296,12 @@ def main() -> None:
                         help="Limit each rover's dome queue to this many cubes (default 4).")
     parser.add_argument("--viewer", action="store_true",
                         help="Launch the MuJoCo passive viewer (use with mjpython).")
-    parser.add_argument("--speed", type=float, default=1.5)
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=6.0,
+        help="Viewer playback multiplier (default: 6x real time).",
+    )
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--camera", type=int, default=None, choices=[0, 1, 2],
                         help="Lock the viewer to rover N's front-down POV camera.")
