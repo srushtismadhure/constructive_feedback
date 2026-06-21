@@ -41,6 +41,36 @@ def sequence(blueprint: ParsedBlueprint) -> TaskGraph:
             tasks.append(t)
             comp_tasks[comp_id] = [t.task_id]
 
+        elif comp.type in ("extrude",):
+            t = Task(
+                task_id=f"{comp_id}_extrude",
+                action="extrude",
+                required_role="3d_printer",
+                position=comp.position,
+                material=comp.material,
+                quantity=comp.quantity or 1,
+                depends_on=dep_task_ids,
+                component_id=comp_id,
+                params=comp.params,
+            )
+            tasks.append(t)
+            comp_tasks[comp_id] = [t.task_id]
+
+        elif comp.type in ("place",):
+            t = Task(
+                task_id=f"{comp_id}_place",
+                action="place",
+                required_role="arm_robot",
+                position=comp.position,
+                material=comp.material,
+                quantity=comp.quantity or 1,
+                depends_on=dep_task_ids,
+                component_id=comp_id,
+                params=comp.params,
+            )
+            tasks.append(t)
+            comp_tasks[comp_id] = [t.task_id]
+
         elif comp.type in ("wall", "roof", "panel"):
             haul_id = f"{comp_id}_haul"
             action = "weld" if comp.type in ("wall", "roof") else "place"

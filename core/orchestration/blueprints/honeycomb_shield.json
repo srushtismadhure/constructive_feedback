@@ -1,0 +1,71 @@
+{
+  "blueprint_id": "honeycomb-shield",
+  "components": [
+    {
+      "id": "foundation_pad",
+      "type": "extrude",
+      "depends_on": [],
+      "params": { "geometry": "pad", "material": "regolith_polymer", "z_index": 0 }
+    },
+    {
+      "id": "cell_ring_1",
+      "type": "extrude",
+      "depends_on": ["foundation_pad"],
+      "params": { "geometry": "honeycomb_ring", "material": "regolith_polymer", "z_index": 1 }
+    },
+    {
+      "id": "fill_ring_1",
+      "type": "place",
+      "depends_on": ["cell_ring_1"],
+      "params": { "payload": "regolith_block", "count": 12, "z_index": 1, "parallel": true }
+    },
+    {
+      "id": "cap_ring_1",
+      "type": "extrude",
+      "depends_on": ["fill_ring_1"],
+      "params": { "geometry": "cap", "material": "regolith_polymer", "z_index": 2 }
+    },
+    {
+      "id": "cell_ring_2",
+      "type": "extrude",
+      "depends_on": ["cap_ring_1"],
+      "params": { "geometry": "honeycomb_ring", "material": "regolith_polymer", "z_index": 3 }
+    },
+    {
+      "id": "fill_ring_2",
+      "type": "place",
+      "depends_on": ["cell_ring_2"],
+      "params": { "payload": "regolith_block", "count": 12, "z_index": 3, "parallel": true }
+    },
+    {
+      "id": "cap_ring_2",
+      "type": "extrude",
+      "depends_on": ["fill_ring_2"],
+      "params": { "geometry": "cap", "material": "regolith_polymer", "z_index": 4 }
+    },
+    {
+      "id": "cell_ring_3",
+      "type": "extrude",
+      "depends_on": ["cap_ring_2"],
+      "params": { "geometry": "honeycomb_ring", "material": "regolith_polymer", "z_index": 5 }
+    },
+    {
+      "id": "fill_ring_3",
+      "type": "place",
+      "depends_on": ["cell_ring_3"],
+      "params": { "payload": "regolith_block", "count": 12, "z_index": 5, "parallel": true }
+    },
+    {
+      "id": "cap_ring_3",
+      "type": "extrude",
+      "depends_on": ["fill_ring_3"],
+      "params": { "geometry": "cap", "material": "regolith_polymer", "z_index": 6 }
+    },
+    {
+      "id": "roof_slab",
+      "type": "extrude",
+      "depends_on": ["cap_ring_3"],
+      "params": { "geometry": "slab", "material": "regolith_polymer", "z_index": 7 }
+    }
+  ]
+}

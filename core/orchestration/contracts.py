@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -13,16 +13,28 @@ from pydantic import BaseModel, Field
 
 class Component(BaseModel):
     id: str
-    type: Literal["foundation", "wall", "roof", "panel"]
-    position: tuple[int, int, int]
-    material: str
-    quantity: int
+    type: Literal["foundation", "wall", "roof", "panel", "extrude", "place"]
+    position: tuple[int, int, int] = (0, 0, 0)
+    material: str | None = None
+    quantity: int | None = None
     depends_on: list[str] = []
+    params: dict | None = None  # extended blueprint params (geometry, payload, count, z_index…)
 
 
 class Blueprint(BaseModel):
     building_id: str
     components: list[Component]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_fields(cls, data: Any) -> Any:
+        """Accept blueprint_id as alias for building_id; ignore extra frontend fields."""
+        if not isinstance(data, dict):
+            return data
+        d = dict(data)
+        if "blueprint_id" in d and "building_id" not in d:
+            d["building_id"] = d.pop("blueprint_id")
+        return d
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +42,7 @@ class Blueprint(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ParsedComponent(Component):
-    required_role: Literal["excavator", "welder", "hauler"]
+    required_role: Literal["excavator", "welder", "hauler", "3d_printer", "arm_robot"]
 
 
 class ParsedBlueprint(BaseModel):
@@ -56,14 +68,15 @@ class SiteData(BaseModel):
 
 class Task(BaseModel):
     task_id: str
-    action: Literal["excavate", "haul", "place", "weld"]
-    required_role: Literal["excavator", "welder", "hauler"]
+    action: Literal["excavate", "haul", "place", "weld", "extrude"]
+    required_role: Literal["excavator", "welder", "hauler", "3d_printer", "arm_robot"]
     position: tuple[int, int, int]
     material: str | None = None
     quantity: int | None = None
     depends_on: list[str] = []
     status: Literal["pending", "assigned", "in_progress", "done", "failed"] = "pending"
     component_id: str = ""
+    params: dict | None = None  # pass-through to Action for VLA determinism
 
 
 class TaskGraph(BaseModel):
@@ -77,7 +90,7 @@ class TaskGraph(BaseModel):
 
 class Robot(BaseModel):
     id: str
-    role: Literal["excavator", "welder", "hauler"]
+    role: Literal["excavator", "welder", "hauler", "3d_printer", "arm_robot"]
     capabilities: list[str]
     status: Literal["idle", "busy", "charging", "broken"] = "idle"
     position: tuple[int, int]
@@ -90,7 +103,7 @@ class RobotRegistry(BaseModel):
     def get(self, robot_id: str) -> Robot | None:
         return next((r for r in self.robots if r.id == robot_id), None)
 
-    def idle_robots(self, role: Literal["excavator", "welder", "hauler"] | None = None) -> list[Robot]:
+    def idle_robots(self, role: Literal["excavator", "welder", "hauler", "3d_printer", "arm_robot"] | None = None) -> list[Robot]:
         return [
             r for r in self.robots
             if r.status == "idle" and (role is None or r.role == role)
@@ -140,9 +153,10 @@ class Observation(BaseModel):
 
 class Action(BaseModel):
     robot_id: str
-    command: Literal["move", "excavate", "pickup", "place", "weld", "noop"]
+    command: Literal["move", "excavate", "pickup", "place", "weld", "noop", "extrude"]
     target: tuple[int, int, int] | None = None
     material: str | None = None
+    params: dict | None = None  # geometry, count, payload, etc. for VLA determinism
 
 
 # ---------------------------------------------------------------------------

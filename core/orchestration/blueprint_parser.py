@@ -11,11 +11,13 @@ from orchestration.contracts import Blueprint, ParsedBlueprint, ParsedComponent
 
 _BLUEPRINTS_DIR = Path(__file__).parent / "blueprints"
 
-_ROLE_MAP: dict[str, Literal["excavator", "welder", "hauler"]] = {
+_ROLE_MAP: dict[str, str] = {
     "foundation": "excavator",
     "wall": "welder",
     "roof": "welder",
     "panel": "welder",
+    "extrude": "3d_printer",
+    "place": "arm_robot",
 }
 
 
@@ -43,10 +45,22 @@ def parse_blueprint(source: str | dict) -> ParsedBlueprint:
             raise FileNotFoundError(f"No bundled blueprint for id '{source}' (tried {candidate})")
         raw = Blueprint.model_validate_json(candidate.read_text())
 
-    parsed_components = [
-        ParsedComponent(**c.model_dump(), required_role=_ROLE_MAP[c.type])
-        for c in raw.components
-    ]
+    parsed_components = []
+    for c in raw.components:
+        comp_data = c.model_dump()
+        # Derive material, quantity, position from params when not set at top level
+        p = comp_data.get("params") or {}
+        if comp_data.get("material") is None:
+            comp_data["material"] = p.get("material") or p.get("payload")
+        if comp_data.get("quantity") is None:
+            comp_data["quantity"] = p.get("count", 1)
+        if comp_data.get("position") == (0, 0, 0) and "z_index" in p:
+            comp_data["position"] = (0, 0, int(p["z_index"]))
+        role = _ROLE_MAP.get(c.type)
+        if role is None:
+            raise ValueError(f"Unknown component type '{c.type}' — not in ROLE_MAP")
+        comp_data["required_role"] = role
+        parsed_components.append(ParsedComponent(**comp_data))
 
     return ParsedBlueprint(
         building_id=raw.building_id,

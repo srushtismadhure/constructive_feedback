@@ -158,12 +158,13 @@ def node_dispatch(state: OrchestrationState, env: EnvInterface) -> dict:
         task.status = "in_progress"
         robot.status = "busy"
 
-        _CMD_MAP = {"haul": "pickup", "excavate": "excavate", "place": "place", "weld": "weld"}
+        _CMD_MAP = {"haul": "pickup", "excavate": "excavate", "place": "place", "weld": "weld", "extrude": "extrude"}
         action = Action(
             robot_id=robot.id,
             command=_CMD_MAP.get(task.action, "noop"),  # type: ignore[arg-type]
             target=task.position,
             material=task.material,
+            params=task.params,
         )
 
         obs, reward, done_env, info = env.step(action)

@@ -1,0 +1,108 @@
+{
+  "building_id": "hybrid-igloo",
+  "name": "Hybrid Igloo (Block Core + Printed Shell)",
+  "description": "A low compression dome assembled from dry-stacked, pre-pressed regolith blocks and then sealed under a printed polymer skin. The arm places blocks in concentric, inward-leaning corbel rings that support themselves purely in compression, finishing with a keystone that completes the dome. Only once the full block core stands does the printer take over, driving around the exterior to extrude an airtight, insulating shell and an arched entrance tunnel. This is the two-robot realization of the classic regolith igloo.",
+  "thumbnail": "thumbnails/hybrid_igloo.png",
+  "difficulty": "basic",
+  "estimated_build_time": 420,
+  "tags": ["igloo", "corbel-dome", "compression", "two-phase", "basic"],
+  "material_totals": {
+    "regolith_block": 49,
+    "sealant_foam": 70,
+    "regolith_polymer": 25
+  },
+  "required_roles": ["arm_robot", "3d_printer"],
+  "engineering_rationale": "A corbelled dome of dry-stacked blocks carries its load entirely in compression, with no binder needed for the structure, the same principle behind Nubian vaults and Inuit igloos. Raw blocks cannot hold pressure or insulate, so a printed polymer envelope provides the airtight, thermally insulating seal. Splitting structure (compression blocks, arm) from envelope (printed shell, printer) keeps each robot doing what it does best and yields a clean build order.",
+  "structure": {
+    "geometry": "corbelled compression dome",
+    "height_m": 4.0,
+    "max_diameter_m": 6.0,
+    "wall_thickness_m": 0.5,
+    "pressurized": true,
+    "interior_decks": 1,
+    "notes": "Dry-stacked block core sealed by a printed polymer shell, with an arched entrance."
+  },
+  "components": [
+    {
+      "id": "core_ring_1",
+      "type": "place",
+      "required_role": "arm_robot",
+      "depends_on": [],
+      "label": "Core ring 1 (base)",
+      "description": "Place the widest base ring of pre-pressed regolith blocks directly on the prepared pad.",
+      "params": { "payload": "regolith_block", "count": 18, "ring_radius_m": 3.0, "lean_deg": 0, "block_dims_m": [0.4, 0.2, 0.2] }
+    },
+    {
+      "id": "core_ring_2",
+      "type": "place",
+      "required_role": "arm_robot",
+      "depends_on": ["core_ring_1"],
+      "label": "Core ring 2",
+      "description": "Stack the next ring, each block leaning slightly inward over the one below.",
+      "params": { "payload": "regolith_block", "count": 14, "ring_radius_m": 2.5, "lean_deg": 12 }
+    },
+    {
+      "id": "core_ring_3",
+      "type": "place",
+      "required_role": "arm_robot",
+      "depends_on": ["core_ring_2"],
+      "label": "Core ring 3",
+      "description": "Place a further inward-leaning ring, narrowing the dome.",
+      "params": { "payload": "regolith_block", "count": 10, "ring_radius_m": 1.8, "lean_deg": 24 }
+    },
+    {
+      "id": "core_ring_4",
+      "type": "place",
+      "required_role": "arm_robot",
+      "depends_on": ["core_ring_3"],
+      "label": "Core ring 4",
+      "description": "Place the upper ring approaching the crown of the dome.",
+      "params": { "payload": "regolith_block", "count": 6, "ring_radius_m": 1.0, "lean_deg": 36 }
+    },
+    {
+      "id": "core_keystone",
+      "type": "place",
+      "required_role": "arm_robot",
+      "depends_on": ["core_ring_4"],
+      "label": "Keystone (barrier)",
+      "description": "Set the single keystone block at the crown, completing the self-supporting compression dome. This is the barrier the entire seal phase waits on.",
+      "params": { "payload": "regolith_block", "count": 1, "ring_radius_m": 0.0 }
+    },
+    {
+      "id": "seal_lower",
+      "type": "extrude",
+      "required_role": "3d_printer",
+      "depends_on": ["core_keystone"],
+      "label": "Seal lower shell",
+      "description": "Begin the exterior polymer coat at the dome base. Gated on the full block core standing.",
+      "params": { "geometry": "shell_pass", "material": "sealant_foam", "z_start_m": 0.0, "z_end_m": 1.5, "thickness_m": 0.08 }
+    },
+    {
+      "id": "seal_dome",
+      "type": "extrude",
+      "required_role": "3d_printer",
+      "depends_on": ["seal_lower"],
+      "label": "Seal upper dome",
+      "description": "Coat the upper dome surface, building a continuous airtight membrane over the blocks.",
+      "params": { "geometry": "shell_pass", "material": "sealant_foam", "z_start_m": 1.5, "z_end_m": 4.0, "thickness_m": 0.08 }
+    },
+    {
+      "id": "print_entrance",
+      "type": "extrude",
+      "required_role": "3d_printer",
+      "depends_on": ["seal_dome"],
+      "label": "Print entrance tunnel",
+      "description": "Extrude the arched entrance tunnel onto the front of the dome.",
+      "params": { "geometry": "tunnel", "material": "regolith_polymer", "length_m": 2.0, "arch_height_m": 1.8 }
+    },
+    {
+      "id": "seal_finish",
+      "type": "extrude",
+      "required_role": "3d_printer",
+      "depends_on": ["print_entrance"],
+      "label": "Final airtight pass",
+      "description": "Final airtight smoothing pass over the entire shell and the tunnel join.",
+      "params": { "geometry": "shell_pass", "material": "sealant_foam", "thickness_m": 0.04 }
+    }
+  ]
+}
