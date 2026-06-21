@@ -35,9 +35,9 @@ async def run_demo(rate_hz: float) -> None:
 
     with mujoco.viewer.launch_passive(bridge.model, bridge.data) as viewer:
         viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FREE
-        viewer.cam.lookat[:] = [1.55, -0.35, 3.65]
-        viewer.cam.distance = 2.2
-        viewer.cam.elevation = -25
+        viewer.cam.lookat[:] = [1.55, -0.45, 3.55]
+        viewer.cam.distance = 2.6
+        viewer.cam.elevation = -28
         viewer.cam.azimuth = 135
         keep_clean_view(viewer)
 
@@ -55,7 +55,7 @@ async def run_demo(rate_hz: float) -> None:
                     state = obs["observation/state"]
                     print(
                         f"\rcube=({state[8]:+.2f},{state[9]:+.2f},{state[10]:+.2f}) "
-                        f"holding={state[14]:.0f} success={state[15]:.0f} "
+                        f"holding={state[14]:.0f} placed={int(state[15])}/20 "
                         f"action={action_index}/{len(actions)} terminated={terminated}      ",
                         end="",
                         flush=True,
