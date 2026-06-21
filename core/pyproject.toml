@@ -27,9 +27,20 @@ dependencies = [
 
 [project.optional-dependencies]
 # Recording the scripted oracle into a LeRobot v3 dataset (robot_env/record_dataset.py).
-# Heavy (pulls torch) — only sync this when you're actually recording/training:
+# Pinned to the SAME lerobot commit the Modal training images use (pi05-capable; PyPI's
+# 0.5.1 lacks pi05) so the dataset is written and read by one version. Heavy (pulls torch).
 #   uv sync --extra record
-record = ["lerobot>=0.1.0"]
+record = ["lerobot[training,pi] @ git+https://github.com/huggingface/lerobot.git@b8ad81bf397d59dda69ccfc7e74e847f0a9d4fbf"]
+# Serving the swarm manip task to a VLA over the robot (openpi/0) capability, and the
+# eval runner (swarm_hud_env.py, run_swarm_vla.py). Lightweight — no torch:
+#   uv sync --extra robot
+robot = ["hud-python[robot]>=0.6.5"]
+# Remote pi0.5 policy server on a GPU box / Modal (robot_env/serve/*). modal is in the
+# base deps; this adds the websocket transport:
+#   uv sync --extra serve
+serve = ["hud-python[robot]>=0.6.5", "websockets>=12.0"]
+# pi0.5 policy classes for in-process / server-side inference (same pinned commit as record):
+vla = ["lerobot[training,pi] @ git+https://github.com/huggingface/lerobot.git@b8ad81bf397d59dda69ccfc7e74e847f0a9d4fbf"]
 
 [dependency-groups]
 dev = [
@@ -41,6 +52,10 @@ dev = [
 # Run in place — code is imported via sys.path (see mujoco_adapter / tests / main.py),
 # not installed as a package. Mirrors robot_training's layout.
 package = false
+# The pinned lerobot needs numpy>=2.0; hud's openpi-client caps numpy<2.0, but that cap
+# is conservative (the Modal images co-install both on numpy 2.x via pip and run fine).
+# Force numpy 2.x so hud + the aligned lerobot can share one local env.
+override-dependencies = ["numpy>=2.0.0,<2.3.0"]
 
 [tool.ruff]
 line-length = 100

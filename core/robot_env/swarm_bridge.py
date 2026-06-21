@@ -23,6 +23,8 @@ import mujoco
 import numpy as np
 
 from hud_arm_bridge import (
+    CAMERA_HEIGHT,
+    CAMERA_WIDTH,
     DELTA_SCALE,
     GRIPPER_CLOSED_LEFT,
     GRIPPER_CLOSED_RIGHT,
@@ -283,9 +285,12 @@ class RoverUnit:
 class MarsSwarmBridge:
     """Owns the model + data + cubes + the 3 ``RoverUnit``s."""
 
-    def __init__(self):
+    def __init__(self, render: bool = True):
         self.model: mujoco.MjModel | None = None
         self.data: mujoco.MjData | None = None
+        # Offscreen renderer for per-rover POV cameras (lazy-built in reset()).
+        self.render = render
+        self.renderer: mujoco.Renderer | None = None
         self.rovers: list[RoverUnit] = []
         # Cube state
         self.cube_body_ids: list[int] = []
@@ -327,6 +332,12 @@ class MarsSwarmBridge:
         finally:
             os.chdir(cwd)
         self.data = mujoco.MjData(self.model)
+        if self.render and self.renderer is None:
+            try:
+                self.renderer = mujoco.Renderer(self.model, height=CAMERA_HEIGHT, width=CAMERA_WIDTH)
+            except Exception as exc:  # headless / no GL: fall back to black frames
+                self.renderer = None
+                print(f"[warn] MuJoCo renderer unavailable; returning black frames: {exc}")
 
         # Look up cube state
         self.cube_body_ids = []
@@ -455,6 +466,55 @@ class MarsSwarmBridge:
             self.model.geom_contype[g] = 0
             self.model.geom_conaffinity[g] = 0
 
+    # ---- per-rover observation (VLA recording / inference) ----
+    def _rover_current_cube_idx(self, rover: RoverUnit) -> int | None:
+        """The cube this rover is acting on right now: the one it holds, else its
+        reserved pile cube. None between cycles (idle/driving with no reservation)."""
+        if rover.holding and rover.held_cube_idx is not None:
+            return rover.held_cube_idx
+        return self.next_pile_cube_for(rover)
+
+    def _rover_state(self, rover: RoverUnit) -> np.ndarray:
+        """16-dim state for one rover, laid out exactly like the single-arm bridge's
+        ``_state`` so ``record_dataset`` can reuse the same proprio/godmode slices:
+        joints(0-3), gripper(4), ee_xyz(5-7), cube_xyz(8-10), target_xyz(11-13),
+        holding(14), placed_count(15). cube/target are the privileged godmode coords."""
+        assert self.data is not None
+        mujoco.mj_forward(self.model, self.data)
+        joints = np.array([self.data.qpos[q] for q in rover.arm_qposadrs], dtype=np.float32)
+        ee = rover.ee_world().astype(np.float32)
+        cube_idx = self._rover_current_cube_idx(rover)
+        if cube_idx is not None:
+            cube = np.array(self.data.xpos[self.cube_body_ids[cube_idx]], dtype=np.float32)
+            tgt_idx = self.held_cube_target.get(cube_idx)
+        else:
+            cube = np.zeros(3, dtype=np.float32)
+            tgt_idx = None
+        if tgt_idx is None and rover.dome_queue:
+            tgt_idx = rover.dome_queue[0]
+        target = (np.array(self.dome_targets[tgt_idx], dtype=np.float32)
+                  if tgt_idx is not None else np.zeros(3, dtype=np.float32))
+        return np.concatenate([
+            joints,
+            np.array([rover.gripper], dtype=np.float32),
+            ee, cube, target,
+            np.array([float(rover.holding), float(rover.placed_count)], dtype=np.float32),
+        ])
+
+    def get_observation(self, rover_idx: int):
+        """One rover's POV: its front camera frame + its 16-dim state. Returns
+        ``(obs_dict, done)`` mirroring ``MarsArmPickPlaceBridge.get_observation``."""
+        rover = self.rovers[rover_idx]
+        if self.renderer is None:
+            rgb = np.zeros((CAMERA_HEIGHT, CAMERA_WIDTH, 3), dtype=np.uint8)
+        else:
+            self.renderer.update_scene(self.data, camera=f"{ROVER_PREFIXES[rover_idx]}front_cam")
+            rgb = self.renderer.render().astype(np.uint8)
+        return {
+            "observation/image": rgb,
+            "observation/state": self._rover_state(rover).astype(np.float32),
+        }, self.all_done()
+
     # ---- pile queue / claim helpers ----
     def next_pile_cube_for(self, rover: RoverUnit) -> int | None:
         """Return the cube index this rover should attempt to grasp next.
@@ -541,5 +601,8 @@ class MarsSwarmBridge:
         return all(self.cube_placed)
 
     def close(self) -> None:
+        if self.renderer is not None:
+            self.renderer.close()
+        self.renderer = None
         self.data = None
         self.model = None

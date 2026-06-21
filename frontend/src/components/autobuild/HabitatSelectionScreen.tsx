@@ -303,7 +303,7 @@ export default function HabitatSelectionScreen() {
                   role="radio"
                   aria-checked={active}
                   onClick={() => setMode(m)}
-                  title={m === "llm" ? "MiniMax M3 coordinator (falls back to greedy)" : "Nearest-idle-robot heuristic, no LLM"}
+                  title={m === "llm" ? "pi0.5 VLA" : "Nearest-idle-robot heuristic, no LLM"}
                   style={{
                     flex: 1,
                     padding: "0.4rem 0.6rem",
