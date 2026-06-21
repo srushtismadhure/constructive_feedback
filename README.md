@@ -251,22 +251,26 @@ cd frontend && make lint                 # eslint
 
 ## Recording a VLA dataset
 
-The arm's scripted oracle (`MarsArmPickPlaceBridge._scripted_actions`) is the **expert**;
-`core/robot_env/record_dataset.py` replays it and captures `(image, proprio state, action)`
-per tick into a **LeRobot v3 dataset** for fine-tuning a VLA (e.g. pi0.5). The recorded
-`observation.state` is **proprioception only** (joints, gripper, EE pose, holding) — the
-privileged cube/target coordinates are withheld so the policy must use the camera.
+Each robot ships a scripted oracle (the **expert**); `core/robot_env/record_dataset.py`
+replays it and captures `(image, proprio state, action)` per tick into a **LeRobot v3
+dataset** for fine-tuning a VLA (e.g. pi0.5). Two robots via `--robot`:
 
-Those ground-truth coordinates are still recorded, in a separate **`godmode`** column
-(`[cube_xyz, target_xyz]`) — deliberately *not* under the `observation.*` prefix, so no
-standard training config feeds it to the policy. Use it for debugging, analysis, reward,
-or a privileged critic.
+| `--robot` | Expert | Task |
+|---|---|---|
+| `arm` (default) | `MarsArmPickPlaceBridge` | pick 20 cubes into a dome |
+| `printer` | `MarsPrinterBridge` | print a structure — `--structure dome\|wall\|tower` |
+
+The recorded `observation.state` is **proprioception only** (joints, EE pose, tool state) —
+the privileged target coordinates are withheld so the policy must use the camera. Those
+coords are still recorded, in a separate **`godmode`** column (deliberately *not* under
+the `observation.*` prefix, so no standard training config feeds it to the policy). Use it
+for debugging, analysis, reward, or a privileged critic.
 
 ```bash
 cd core
 
 # 1. Validate the pipeline with NO heavy deps (no torch/lerobot):
-uv run python robot_env/record_dataset.py --dry-run
+uv run python robot_env/record_dataset.py --robot printer --structure tower --dry-run
 
 # 2. Install the recording stack (heavy — pulls lerobot + torch):
 uv sync --extra record
@@ -275,10 +279,11 @@ uv sync --extra record
 huggingface-cli login            # or: export HF_TOKEN=hf_...
 
 # 4. Record + push (add --overwrite when re-running; `create` refuses an existing dir):
-uv run python robot_env/record_dataset.py --repo-id <hf-user>/mars-dome-pickplace --push
+uv run python robot_env/record_dataset.py --robot printer --structure tower \
+    --repo-id <hf-user>/mars-print-tower --push
 ```
 
-Result: `https://huggingface.co/datasets/<hf-user>/mars-dome-pickplace`, ready for `lerobot`
+Result: a dataset at `https://huggingface.co/datasets/<hf-user>/...`, ready for `lerobot`
 to fine-tune pi0.5 on. **HUD/this repo does not train the VLA — `lerobot` does** (offline,
 on a GPU); record here, train in lerobot, eval back through HUD.
 

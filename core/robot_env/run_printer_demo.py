@@ -167,8 +167,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Visual demo for the Mars 3-D printer arm.")
     parser.add_argument("--rate-hz", type=float, default=30.0,
                         help="Action dispatch rate (higher = faster playback).")
-    parser.add_argument("--waypoints", type=int, default=5,
-                        help="Number of waypoints to print (default 5 for a lite run).")
+    parser.add_argument("--waypoints", type=int, default=20,
+                        help="Number of waypoints to print (default 20 = full dome; pass fewer for a lite run).")
     args = parser.parse_args()
     asyncio.run(run_demo(args.rate_hz, args.waypoints))
 
