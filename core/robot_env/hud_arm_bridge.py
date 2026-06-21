@@ -20,12 +20,29 @@ CAMERA_HEIGHT = 256
 CAMERA_WIDTH = 256
 PHYSICS_STEPS_PER_ACTION = 20
 DELTA_SCALE = np.array([0.07, 0.07, 0.07, 0.08], dtype=np.float32)
-GRIPPER_CLOSED_LEFT = -0.032
-GRIPPER_CLOSED_RIGHT = 0.032
+GRIPPER_CLOSED_LEFT = -0.020
+GRIPPER_CLOSED_RIGHT = 0.020
 PICK_DISTANCE = 0.16
-TARGET_RADIUS = 0.12
+TARGET_RADIUS = 0.16
 
-NUM_CUBES = 20
+NUM_CUBES = 36
+
+# Pile: 3 cols x 3 rows x 4 layers, stacked at (1.68, -0.92). Order is top-down so the
+# arm always picks an unsupported cube first.
+PILE_CENTER_XY = (1.68, -0.92)
+PILE_GRID = (3, 3, 4)  # cols, rows, layers
+PILE_XY_SPACING = 0.12
+PILE_Z_SPACING = 0.115
+PILE_BASE_Z = 3.39
+
+# Dome: 3 tiers of decreasing radius at increasing z. 16+12+8 = 36.
+DOME_CENTER = (1.671, -0.146, 3.39)
+DOME_TIERS = [
+    # (count, radius, z, angle_offset_rad)
+    (16, 0.25, 3.39, 0.0),
+    (12, 0.18, 3.50, math.pi / 12),  # half-step offset so the ring lands between tier-0 cubes
+    (8, 0.10, 3.61, 0.0),
+]
 
 # The arm's yaw_body sits at this world position (rover at 1.25,-0.5,3.55, +0.09 chassis-top,
 # +0.09 pedestal, +0.09 yaw_body offset).
@@ -96,47 +113,59 @@ class EpisodeResult:
     placed_count: int = 0
 
 
-def _pile_positions() -> list[np.ndarray]:
-    """20 cube positions in a 4-column x 5-row grid centered at (1.65, -0.70, 3.39)."""
-    positions = []
-    for i in range(NUM_CUBES):
-        col = i // 5
-        row = i % 5
-        x = 1.47 + col * 0.12
-        y = -0.94 + row * 0.12
-        positions.append(np.array([x, y, 3.39], dtype=np.float64))
-    return positions
-
-
-def _dome_positions() -> list[np.ndarray]:
-    """20 dome positions forming concentric circles at z=3.39.
-
-    12 outer (r=0.20) + 6 middle (r=0.10) + 2 center. Ordered outer-first so the
-    arm builds the foundation ring before filling inward.
+def _pile_positions(pile_center: tuple[float, float] = PILE_CENTER_XY) -> list[np.ndarray]:
+    """36 cube positions in a 3x3x4 stacked pile centered at ``pile_center``.
+    Top layer first so picking always starts from an unsupported cube.
     """
-    cx, cy, cz = 1.64, -0.11, 3.39
-    positions: list[np.ndarray] = []
-    for i in range(12):
-        angle = 2 * math.pi * i / 12
-        positions.append(np.array([cx + 0.20 * math.cos(angle),
-                                   cy + 0.20 * math.sin(angle),
-                                   cz], dtype=np.float64))
-    for i in range(6):
-        angle = math.pi / 6 + 2 * math.pi * i / 6
-        positions.append(np.array([cx + 0.10 * math.cos(angle),
-                                   cy + 0.10 * math.sin(angle),
-                                   cz], dtype=np.float64))
-    positions.append(np.array([cx - 0.05, cy, cz], dtype=np.float64))
-    positions.append(np.array([cx + 0.05, cy, cz], dtype=np.float64))
+    positions = []
+    cols, rows, layers = PILE_GRID
+    cx, cy = pile_center
+    for i in range(NUM_CUBES):
+        # i=0..8 → top layer; i=9..17 → second; etc.
+        layer = (layers - 1) - (i // (cols * rows))
+        in_layer = i % (cols * rows)
+        col = in_layer % cols
+        row = in_layer // cols
+        x = cx + (col - (cols - 1) / 2.0) * PILE_XY_SPACING
+        y = cy + (row - (rows - 1) / 2.0) * PILE_XY_SPACING
+        z = PILE_BASE_Z + layer * PILE_Z_SPACING
+        positions.append(np.array([x, y, z], dtype=np.float64))
     return positions
 
 
-def _ik_top_down(ee_world: np.ndarray) -> np.ndarray | None:
+def _dome_positions(dome_center: tuple[float, float, float] = DOME_CENTER) -> list[np.ndarray]:
+    """36 dome target positions forming a 3-tier dome (16+12+8) with decreasing
+    radius at increasing height, centered at ``dome_center`` (xy used; z from tiers).
+    """
+    cx, cy = dome_center[0], dome_center[1]
+    positions: list[np.ndarray] = []
+    for count, radius, z, offset in DOME_TIERS:
+        for i in range(count):
+            angle = offset + 2 * math.pi * i / count
+            positions.append(np.array([cx + radius * math.cos(angle),
+                                       cy + radius * math.sin(angle),
+                                       z], dtype=np.float64))
+    return positions
+
+
+def _ik_top_down(ee_world: np.ndarray,
+                 arm_yaw_body_world: np.ndarray = ARM_YAW_BODY_WORLD,
+                 rover_yaw: float = 0.0) -> np.ndarray | None:
     """Analytic IK: place the EE at ee_world with the gripper pointing straight down
     (shoulder+elbow+wrist = 0). Returns [yaw, shoulder, elbow, wrist] or None if unreachable.
+
+    ``arm_yaw_body_world`` is the world position of the arm's yaw joint.
+    ``rover_yaw`` is the rover's heading in world frame; the target is rotated into
+    the arm's local frame before solving. The returned ``yaw`` is the joint angle in
+    rover-local frame (which is what the joint actuator consumes).
     """
-    rel = ee_world - ARM_YAW_BODY_WORLD
-    x_rel, y_rel, z_rel = float(rel[0]), float(rel[1]), float(rel[2])
+    rel_world = ee_world - arm_yaw_body_world
+    # Rotate world-relative target into rover-local frame.
+    cos_t = math.cos(-rover_yaw)
+    sin_t = math.sin(-rover_yaw)
+    x_rel = cos_t * float(rel_world[0]) - sin_t * float(rel_world[1])
+    y_rel = sin_t * float(rel_world[0]) + cos_t * float(rel_world[1])
+    z_rel = float(rel_world[2])
     yaw = math.atan2(y_rel, x_rel)
     r_xy = math.hypot(x_rel, y_rel)
     # With sum=0, the wrist body sits L3 behind the EE in arm-plane +x; same z as EE.
@@ -178,6 +207,9 @@ class MarsArmPickPlaceBridge(RobotBridge):
         self.cube_qposadrs: list[int] = []
         self.cube_qveladrs: list[int] = []
         self.cube_body_ids: list[int] = []
+        self.cube_geom_ids: list[int] = []
+        self.cube_default_contype: list[int] = []
+        self.cube_default_conaffinity: list[int] = []
         self.cube_targets: list[np.ndarray] = []
         self.cube_placed: list[bool] = []
         self.current_cube_idx = 0
@@ -190,16 +222,22 @@ class MarsArmPickPlaceBridge(RobotBridge):
         self.terminated = False
         self.total_reward = 0.0
         self.steps = 0
-        self.max_steps = 3000
+        self.max_steps = 4000
 
-    async def reset(self, task_id: str, seed: int = 0) -> str:
+    async def reset(self, task_id: str, seed: int = 0,
+                    scene_path: str = "mars_scene.xml",
+                    pile_center: tuple[float, float] | None = None,
+                    dome_center: tuple[float, float, float] | None = None) -> str:
         del task_id
         np.random.seed(seed)
+        self._scene_path = scene_path
+        self._pile_center = pile_center if pile_center is not None else PILE_CENTER_XY
+        self._dome_center = dome_center if dome_center is not None else DOME_CENTER
 
         cwd = os.getcwd()
         try:
             os.chdir(SCENE_DIR)
-            self.model = mujoco.MjModel.from_xml_path("mars_scene.xml")
+            self.model = mujoco.MjModel.from_xml_path(scene_path)
         finally:
             os.chdir(cwd)
         self.data = mujoco.MjData(self.model)
@@ -224,15 +262,23 @@ class MarsArmPickPlaceBridge(RobotBridge):
         self.cube_qposadrs = []
         self.cube_qveladrs = []
         self.cube_body_ids = []
+        self.cube_geom_ids = []
+        self.cube_default_contype = []
+        self.cube_default_conaffinity = []
         for i in range(NUM_CUBES):
             joint = self.model.joint(f"pick_cube_{i}_free").id
             self.cube_qposadrs.append(self.model.jnt_qposadr[joint])
             self.cube_qveladrs.append(self.model.jnt_dofadr[joint])
             self.cube_body_ids.append(self.model.body(f"pick_cube_{i}").id)
+            geom_id = self.model.geom(f"pick_cube_{i}_geom").id
+            self.cube_geom_ids.append(geom_id)
+            self.cube_default_contype.append(int(self.model.geom_contype[geom_id]))
+            self.cube_default_conaffinity.append(int(self.model.geom_conaffinity[geom_id]))
 
-        self.cube_targets = _dome_positions()
+        self.cube_targets = _dome_positions(self._dome_center)
         self.cube_placed = [False] * NUM_CUBES
         self.current_cube_idx = 0
+        self.arm_yaw_body_id = int(self.model.body("arm_yaw_body").id)
 
         self.ee_site_id = self.model.site("ee_site").id
         self.target_site_id = self.model.site("target_site").id
@@ -245,7 +291,7 @@ class MarsArmPickPlaceBridge(RobotBridge):
         self.total_reward = 0.0
         self.steps = 0
 
-        pile = _pile_positions()
+        pile = _pile_positions(self._pile_center)
         for i, pos in enumerate(pile):
             self._set_cube_pose_idx(i, pos)
         self._apply_targets()
@@ -346,6 +392,12 @@ class MarsArmPickPlaceBridge(RobotBridge):
         idx = min(self.current_cube_idx, NUM_CUBES - 1)
         return np.array(self.data.xpos[self.cube_body_ids[idx]], dtype=np.float64)
 
+    def arm_yaw_body_world(self) -> np.ndarray:
+        """Current world position of the arm's yaw joint. Tracks the rover when mobile."""
+        assert self.data is not None
+        mujoco.mj_forward(self.model, self.data)
+        return np.array(self.data.xpos[self.arm_yaw_body_id], dtype=np.float64)
+
     def _update_grasp(self) -> None:
         assert self.data is not None
         if self.current_cube_idx >= NUM_CUBES:
@@ -356,22 +408,37 @@ class MarsArmPickPlaceBridge(RobotBridge):
         cube = self.data.xpos[self.cube_body_ids[idx]]
         if self.holding:
             if self.gripper > 0.45:
-                # Release: zero velocity, mark placed if within target tolerance.
+                # Release: re-enable cube collision so it can rest on others, zero
+                # velocity, and mark placed if it landed within target tolerance.
                 self.holding = False
+                self._set_cube_collidable(idx, True)
                 qvel0 = self.cube_qveladrs[idx]
                 self.data.qvel[qvel0:qvel0 + 6] = 0.0
                 target_xy = self.cube_targets[idx][:2]
                 if np.linalg.norm(cube[:2] - target_xy) <= TARGET_RADIUS:
                     self.cube_placed[idx] = True
-                # Advance to the next cube regardless: if the release missed, we'd
-                # otherwise loop forever trying to grasp empty air.
+                # Advance regardless: if the release missed, looping again would just
+                # try to grasp empty air.
                 self.current_cube_idx += 1
             else:
                 self._set_cube_pose_idx(idx, ee + HELD_OFFSET)
             return
         if self.gripper < 0.25 and np.linalg.norm(ee - cube) <= PICK_DISTANCE:
+            # Grasp: disable the held cube's collision so it can travel through the
+            # pile / over the dome without bulldozing other cubes.
             self.holding = True
+            self._set_cube_collidable(idx, False)
             self._set_cube_pose_idx(idx, ee + HELD_OFFSET)
+
+    def _set_cube_collidable(self, idx: int, collidable: bool) -> None:
+        assert self.model is not None
+        geom_id = self.cube_geom_ids[idx]
+        if collidable:
+            self.model.geom_contype[geom_id] = self.cube_default_contype[idx]
+            self.model.geom_conaffinity[geom_id] = self.cube_default_conaffinity[idx]
+        else:
+            self.model.geom_contype[geom_id] = 0
+            self.model.geom_conaffinity[geom_id] = 0
 
     def _set_cube_pose_idx(self, idx: int, pos: np.ndarray) -> None:
         assert self.data is not None
@@ -472,8 +539,8 @@ def _scripted_actions() -> list[np.ndarray]:
     current = np.array([0.0, -0.35, 0.65, -0.25], dtype=np.float32)
     actions: list[np.ndarray] = []
 
-    approach_dz = 0.20  # EE this far above cube center for transit
-    grasp_dz = 0.05     # EE this far above cube center to grasp / release
+    approach_dz = 0.28  # EE this far above cube center for transit (raised for visual clearance)
+    grasp_dz = 0.08     # EE this far above cube center to grasp / release
 
     for i in range(NUM_CUBES):
         pickup_xyz = pile[i]
