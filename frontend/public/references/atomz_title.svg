@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="220" viewBox="0 0 1200 220">
+  <defs>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="48%" stop-color="#d9d9d9"/>
+      <stop offset="100%" stop-color="#f7f7f7"/>
+    </linearGradient>
+    <filter id="softGlow" x="-20%" y="-30%" width="140%" height="160%">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g fill="url(#metal)" filter="url(#softGlow)">
+    <!-- A -->
+    <path d="M40 180 L112 35 L145 35 L215 180 L176 180 L129 76 L80 180 Z"/>
+
+    <!-- T -->
+    <path d="M260 35 H430 V68 H362 V180 H328 V68 H260 Z"/>
+
+    <!-- O -->
+    <path fill-rule="evenodd" d="
+      M492 35
+      H624
+      Q656 35 656 67
+      V148
+      Q656 180 624 180
+      H492
+      Q460 180 460 148
+      V67
+      Q460 35 492 35
+      Z
+
+      M504 68
+      Q494 68 494 78
+      V137
+      Q494 147 504 147
+      H612
+      Q622 147 622 137
+      V78
+      Q622 68 612 68
+      Z"/>
+
+    <!-- M -->
+    <path d="
+      M706 180 V35 H742
+      L795 99
+      L848 35
+      H884 V180
+      H850 V86
+      L796 148
+      H793
+      L740 86
+      V180 Z"/>
+
+    <!-- Z -->
+    <path d="
+      M930 35 H1138 V67
+      L1000 147
+      H1138 V180
+      H930 V148
+      L1068 68
+      H930 Z"/>
+  </g>
+</svg>
