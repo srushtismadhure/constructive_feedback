@@ -1,11 +1,11 @@
 from hud import Environment
 from hud.environment.robot import RobotEndpoint
 
-from hud_mujoco_bridge import CONTRACT, MarsMujocoBridge
+from hud_arm_bridge import CONTRACT, MarsArmPickPlaceBridge
 
 
-env = Environment(name="mars-mujoco-ingenuity")
-endpoint = RobotEndpoint(MarsMujocoBridge())
+env = Environment(name="mars-arm-pick-place")
+endpoint = RobotEndpoint(MarsArmPickPlaceBridge())
 
 
 @env.initialize
@@ -20,7 +20,7 @@ async def _down():
 
 
 @env.template()
-async def mars_ingenuity(task_id: str = "move-ingenuity", seed: int = 0):
+async def mars_pick_place(task_id: str = "pick-place-cube", seed: int = 0):
     prompt = await endpoint.reset(task_id=task_id, seed=seed)
     yield {"prompt": prompt}
     yield await endpoint.result()
