@@ -24,6 +24,12 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[project.optional-dependencies]
+# Recording the scripted oracle into a LeRobot v3 dataset (robot_env/record_dataset.py).
+# Heavy (pulls torch) — only sync this when you're actually recording/training:
+#   uv sync --extra record
+record = ["lerobot>=0.1.0"]
+
 [dependency-groups]
 dev = [
     "ruff>=0.4.0",
