@@ -19,6 +19,11 @@
     <material name="rover_chassis_mat" rgba="0.88 0.66 0.18 1" shininess="0.35" specular="0.2"/>
     <material name="rover_panel_mat" rgba="0.05 0.12 0.25 1" shininess="0.5" specular="0.35"/>
     <material name="rover_wheel_mat" rgba="0.08 0.08 0.08 1"/>
+    <material name="arm_mat" rgba="0.62 0.68 0.72 1" shininess="0.25" specular="0.15"/>
+    <material name="arm_joint_mat" rgba="0.12 0.16 0.18 1" shininess="0.25" specular="0.15"/>
+    <material name="gripper_mat" rgba="0.08 0.08 0.08 1"/>
+    <material name="cube_mat" rgba="0.1 0.45 0.9 1" shininess="0.2" specular="0.1"/>
+    <material name="target_mat" rgba="0.15 0.8 0.25 0.45" shininess="0.1" specular="0.05"/>
 
     <mesh name="mars_terrain" file="Mars - Spirit Landing Site_smooth.stl" scale="0.25 0.25 0.25"/>
     <hfield name="mars_heightfield" file="Mars - Spirit Landing Site_heightfield.png" size="21.219839 20.501948 2.819581 0.05"/>
@@ -31,12 +36,18 @@
     <geom name="terrain_visual" type="mesh" mesh="mars_terrain" material="terrain_mat" contype="0" conaffinity="0" group="2"/>
     <geom name="terrain_collision" type="hfield" hfield="mars_heightfield" pos="4.536614 -5.097652 3.032014" rgba="0 0 0 0" contype="0" conaffinity="0" group="2"/>
     <geom name="rover_drive_plane" type="plane" pos="0 0 3.31" size="8 8 0.1" material="terrain_mat" condim="6" group="1"/>
+    <geom name="target_pad" type="cylinder" pos="1.671 -0.146 3.312" size="0.16 0.004" material="target_mat" contype="0" conaffinity="0"/>
+    <site name="target_site" pos="1.671 -0.146 3.39" size="0.02" rgba="0.1 1 0.2 1"/>
 
-    <!-- Simple differential-drive rover with real wheel hinge joints and velocity actuators. -->
+    <body name="pick_cube" pos="1.80 -0.5 3.39">
+      <freejoint name="pick_cube_free"/>
+      <geom name="pick_cube_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02"/>
+    </body>
+
+    <!-- Stationary rover serving as the mounting platform for the pick/place arm. -->
     <body name="simple_rover" pos="1.25 -0.5 3.55">
-      <freejoint name="rover_free"/>
       <geom name="rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="4.0"/>
-      <geom name="rover_solar_panel" type="box" size="0.32 0.22 0.01" pos="0 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
+      <geom name="rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
 
       <body name="wheel_fl" pos="0.24 0.31 -0.1">
         <joint name="wheel_fl_joint" type="hinge" axis="0 1 0" damping="0.02"/>
@@ -53,6 +64,38 @@
       <body name="wheel_rr" pos="-0.24 -0.31 -0.1">
         <joint name="wheel_rr_joint" type="hinge" axis="0 1 0" damping="0.02"/>
         <geom name="wheel_rr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.8 0.08 0.02"/>
+      </body>
+
+      <!-- Pick/place arm mounted on top of the rover chassis. -->
+      <body name="pick_place_arm" pos="0 0 0.09">
+        <geom name="arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="5.0" contype="0" conaffinity="0"/>
+        <body name="arm_yaw_body" pos="0 0 0.09">
+          <joint name="arm_yaw" type="hinge" axis="0 0 1" range="-100 100" damping="1.2"/>
+          <geom name="arm_yaw_hub" type="sphere" size="0.075" material="arm_joint_mat" mass="0.4" contype="0" conaffinity="0"/>
+          <body name="arm_upper" pos="0 0 0">
+            <joint name="arm_shoulder" type="hinge" axis="0 1 0" range="-65 80" damping="1.2"/>
+            <geom name="arm_upper_link" type="capsule" fromto="0 0 0 0.42 0 0" size="0.035" material="arm_mat" mass="0.5" contype="0" conaffinity="0"/>
+            <body name="arm_forearm" pos="0.42 0 0">
+              <joint name="arm_elbow" type="hinge" axis="0 1 0" range="-110 100" damping="1.0"/>
+              <geom name="arm_elbow_hub" type="sphere" size="0.055" material="arm_joint_mat" mass="0.25" contype="0" conaffinity="0"/>
+              <geom name="arm_forearm_link" type="capsule" fromto="0 0 0 0.34 0 0" size="0.03" material="arm_mat" mass="0.35" contype="0" conaffinity="0"/>
+              <body name="arm_wrist_body" pos="0.34 0 0">
+                <joint name="arm_wrist" type="hinge" axis="0 1 0" range="-120 120" damping="0.8"/>
+                <geom name="arm_wrist_hub" type="sphere" size="0.045" material="arm_joint_mat" mass="0.15" contype="0" conaffinity="0"/>
+                <geom name="gripper_palm" type="box" size="0.045 0.09 0.025" pos="0.055 0 0" material="gripper_mat" mass="0.15" contype="0" conaffinity="0"/>
+                <site name="ee_site" pos="0.12 0 0" size="0.025" rgba="1 0.2 0.1 1"/>
+                <body name="left_finger" pos="0.085 0.055 -0.035">
+                  <joint name="left_gripper_slide" type="slide" axis="0 1 0" range="-0.035 0" damping="0.3"/>
+                  <geom name="left_finger_geom" type="box" size="0.035 0.012 0.06" material="gripper_mat" mass="0.05" contype="0" conaffinity="0"/>
+                </body>
+                <body name="right_finger" pos="0.085 -0.055 -0.035">
+                  <joint name="right_gripper_slide" type="slide" axis="0 1 0" range="0 0.035" damping="0.3"/>
+                  <geom name="right_finger_geom" type="box" size="0.035 0.012 0.06" material="gripper_mat" mass="0.05" contype="0" conaffinity="0"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
       </body>
     </body>
 
@@ -74,5 +117,11 @@
     <motor name="wheel_fr_motor" joint="wheel_fr_joint" gear="1" ctrlrange="-1.2 1.2" ctrllimited="true"/>
     <motor name="wheel_rl_motor" joint="wheel_rl_joint" gear="1" ctrlrange="-1.2 1.2" ctrllimited="true"/>
     <motor name="wheel_rr_motor" joint="wheel_rr_joint" gear="1" ctrlrange="-1.2 1.2" ctrllimited="true"/>
+    <position name="arm_yaw_pos" joint="arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
+    <position name="arm_shoulder_pos" joint="arm_shoulder" kp="45" ctrlrange="-1.134 1.396" ctrllimited="true"/>
+    <position name="arm_elbow_pos" joint="arm_elbow" kp="40" ctrlrange="-1.92 1.745" ctrllimited="true"/>
+    <position name="arm_wrist_pos" joint="arm_wrist" kp="25" ctrlrange="-2.094 2.094" ctrllimited="true"/>
+    <position name="left_gripper_pos" joint="left_gripper_slide" kp="60" ctrlrange="-0.035 0" ctrllimited="true"/>
+    <position name="right_gripper_pos" joint="right_gripper_slide" kp="60" ctrlrange="0 0.035" ctrllimited="true"/>
   </actuator>
 </mujoco>
