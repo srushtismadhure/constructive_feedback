@@ -41,6 +41,10 @@ robot = ["hud-python[robot]>=0.6.5"]
 serve = ["hud-python[robot]>=0.6.5", "websockets>=12.0"]
 # pi0.5 policy classes for in-process / server-side inference (same pinned commit as record):
 vla = ["lerobot[training,pi] @ git+https://github.com/huggingface/lerobot.git@b8ad81bf397d59dda69ccfc7e74e847f0a9d4fbf"]
+# Writing an overview MP4 of the policy (robot_env/visualize_swarm.py --video). The live
+# viewer (--remote/--oracle with mjpython) needs none of this:
+#   uv sync --extra viz
+viz = ["imageio[ffmpeg]>=2.30"]
 
 [dependency-groups]
 dev = [
