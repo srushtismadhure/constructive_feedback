@@ -116,6 +116,25 @@ uv run python robot_env/run_swarm_vla.py --remote HOST:PORT --group 4
 
 Success rate should rise toward 100%, deterministically and repeatably (fixed seeds).
 
+### 6. Watch the policy (visualize)
+
+`run_swarm_vla.py` is headless (HUD runs the env in its own process). To *see* the policy,
+`visualize_swarm.py` drives the bridge directly and renders — pulling actions from the same
+served checkpoint:
+
+```bash
+# live MuJoCo window (macOS needs mjpython), policy on the remote server from step 5:
+mjpython robot_env/visualize_swarm.py --remote HOST:PORT
+
+# headless → overview MP4 (for the demo reel; needs: uv sync --extra viz):
+uv run python robot_env/visualize_swarm.py --remote HOST:PORT --video build.mp4
+
+# sanity-check the viz with no GPU/server — the scripted oracle:
+mjpython robot_env/visualize_swarm.py --oracle
+```
+
+(`--checkpoint <repo>` runs a checkpoint locally instead of `--remote`; `--noop` holds still.)
+
 ## Local (own GPU box) instead of Modal
 
 `pi05_modal_mars.py` and `sft_modal.py` just wrap these — on a GPU box run them directly:
