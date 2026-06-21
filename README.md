@@ -279,6 +279,9 @@ uv sync --extra record
 huggingface-cli login            # or: export HF_TOKEN=hf_...
 
 # 4. Record + push (add --overwrite when re-running; `create` refuses an existing dir):
+uv run python robot_env/record_dataset.py --robot arm \
+    --repo-id changminbark/mars-construction-arm --push --overwrite
+
 uv run python robot_env/record_dataset.py --robot printer --structure tower \
     --repo-id <hf-user>/mars-print-tower --push
 ```
