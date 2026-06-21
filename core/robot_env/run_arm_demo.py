@@ -73,7 +73,9 @@ async def run_demo(rate_hz: float) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Visual demo for the HUD pick/place arm bridge.")
-    parser.add_argument("--rate-hz", type=float, default=10.0)
+    parser.add_argument("--rate-hz", type=float, default=60.0,
+                        help="Bridge step rate. Each step advances 40ms of sim, so 60Hz = "
+                             "2.4x real-time and 25Hz = real-time. Higher = smoother visuals.")
     args = parser.parse_args()
     asyncio.run(run_demo(args.rate_hz))
 

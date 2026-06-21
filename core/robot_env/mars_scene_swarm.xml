@@ -1,0 +1,296 @@
+<mujoco model="mars_swarm_scene">
+  <compiler angle="degree" coordinate="local" inertiafromgeom="true"/>
+
+  <option timestep="0.002" gravity="0 0 -3.721">
+    <flag energy="enable"/>
+  </option>
+
+  <default>
+    <geom solref="0.01 1" solimp="0.95 0.99 0.001" friction="1.2 0.05 0.02"/>
+  </default>
+
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1="0.03 0.02 0.05" rgb2="0.65 0.32 0.18" width="512" height="512"/>
+    <texture name="soil_tex" type="2d" builtin="gradient" rgb1="0.72 0.35 0.22" rgb2="0.42 0.18 0.09" width="2048" height="2048"/>
+    <material name="terrain_mat" texture="soil_tex" texrepeat="8 8" shininess="0.03" specular="0.03"/>
+    <material name="ingenuity_body_mat" rgba="0.92 0.92 0.86 1"/>
+    <material name="ingenuity_blades_mat" rgba="0.08 0.08 0.08 1"/>
+    <material name="ingenuity_legs_mat" rgba="0.02 0.02 0.02 1"/>
+    <material name="rover_chassis_mat" rgba="0.88 0.66 0.18 1" shininess="0.35" specular="0.2"/>
+    <material name="rover_panel_mat" rgba="0.05 0.12 0.25 1" shininess="0.5" specular="0.35"/>
+    <material name="rover_wheel_mat" rgba="0.08 0.08 0.08 1"/>
+    <material name="arm_mat" rgba="0.62 0.68 0.72 1" shininess="0.25" specular="0.15"/>
+    <material name="arm_joint_mat" rgba="0.12 0.16 0.18 1" shininess="0.25" specular="0.15"/>
+    <material name="gripper_mat" rgba="0.08 0.08 0.08 1"/>
+    <material name="cube_mat" rgba="0.86 0.08 0.24 1" shininess="0.2" specular="0.1"/>
+    <material name="target_mat" rgba="0.15 0.8 0.25 0.45" shininess="0.1" specular="0.05"/>
+
+    <mesh name="mars_terrain" file="Mars - Spirit Landing Site_smooth.stl" scale="0.25 0.25 0.25"/>
+    <hfield name="mars_heightfield" file="Mars - Spirit Landing Site_heightfield.png" size="21.219839 20.501948 2.819581 0.05"/>
+  </asset>
+
+  <worldbody>
+    <light directional="true" diffuse="0.85 0.75 0.65" specular="0.2 0.2 0.2" pos="0 0 150" dir="0.3 0.2 -1" castshadow="true"/>
+    <light directional="true" diffuse="0.25 0.15 0.1" pos="0 0 100" dir="-0.3 -0.2 -1"/>
+
+    <geom name="terrain_visual" type="mesh" mesh="mars_terrain" material="terrain_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="terrain_collision" type="hfield" hfield="mars_heightfield" pos="4.536614 -5.097652 3.032014" rgba="0 0 0 0" contype="0" conaffinity="0" group="2"/>
+    <geom name="rover_drive_plane" type="plane" pos="0 0 3.31" size="8 8 0.1" material="terrain_mat" condim="6" group="1" contype="1" conaffinity="3"/>
+
+    <!-- Dome footprint marker at origin. -->
+    <geom name="target_pad" type="cylinder" pos="0 0 3.312" size="0.30 0.004" material="target_mat" contype="0" conaffinity="0"/>
+    <site name="target_site" pos="0 0 3.39" size="0.02" rgba="0.1 1 0.2 1"/>
+
+    <!-- 36-cube layout: three 2x2x3 piles, one per rover. Indices 0-11 = pile 0, 12-23 = pile 1, 24-35 = pile 2. -->
+    <body name="pick_cube_0" pos="-0.060 -3.560 3.620"><freejoint name="pick_cube_0_free"/><geom name="pick_cube_0_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_1" pos="0.060 -3.560 3.620"><freejoint name="pick_cube_1_free"/><geom name="pick_cube_1_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_2" pos="-0.060 -3.440 3.620"><freejoint name="pick_cube_2_free"/><geom name="pick_cube_2_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_3" pos="0.060 -3.440 3.620"><freejoint name="pick_cube_3_free"/><geom name="pick_cube_3_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_4" pos="-0.060 -3.560 3.505"><freejoint name="pick_cube_4_free"/><geom name="pick_cube_4_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_5" pos="0.060 -3.560 3.505"><freejoint name="pick_cube_5_free"/><geom name="pick_cube_5_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_6" pos="-0.060 -3.440 3.505"><freejoint name="pick_cube_6_free"/><geom name="pick_cube_6_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_7" pos="0.060 -3.440 3.505"><freejoint name="pick_cube_7_free"/><geom name="pick_cube_7_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_8" pos="-0.060 -3.560 3.390"><freejoint name="pick_cube_8_free"/><geom name="pick_cube_8_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_9" pos="0.060 -3.560 3.390"><freejoint name="pick_cube_9_free"/><geom name="pick_cube_9_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_10" pos="-0.060 -3.440 3.390"><freejoint name="pick_cube_10_free"/><geom name="pick_cube_10_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_11" pos="0.060 -3.440 3.390"><freejoint name="pick_cube_11_free"/><geom name="pick_cube_11_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_12" pos="-3.091 1.690 3.620"><freejoint name="pick_cube_12_free"/><geom name="pick_cube_12_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_13" pos="-2.971 1.690 3.620"><freejoint name="pick_cube_13_free"/><geom name="pick_cube_13_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_14" pos="-3.091 1.810 3.620"><freejoint name="pick_cube_14_free"/><geom name="pick_cube_14_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_15" pos="-2.971 1.810 3.620"><freejoint name="pick_cube_15_free"/><geom name="pick_cube_15_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_16" pos="-3.091 1.690 3.505"><freejoint name="pick_cube_16_free"/><geom name="pick_cube_16_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_17" pos="-2.971 1.690 3.505"><freejoint name="pick_cube_17_free"/><geom name="pick_cube_17_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_18" pos="-3.091 1.810 3.505"><freejoint name="pick_cube_18_free"/><geom name="pick_cube_18_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_19" pos="-2.971 1.810 3.505"><freejoint name="pick_cube_19_free"/><geom name="pick_cube_19_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_20" pos="-3.091 1.690 3.390"><freejoint name="pick_cube_20_free"/><geom name="pick_cube_20_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_21" pos="-2.971 1.690 3.390"><freejoint name="pick_cube_21_free"/><geom name="pick_cube_21_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_22" pos="-3.091 1.810 3.390"><freejoint name="pick_cube_22_free"/><geom name="pick_cube_22_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_23" pos="-2.971 1.810 3.390"><freejoint name="pick_cube_23_free"/><geom name="pick_cube_23_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_24" pos="2.971 1.690 3.620"><freejoint name="pick_cube_24_free"/><geom name="pick_cube_24_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_25" pos="3.091 1.690 3.620"><freejoint name="pick_cube_25_free"/><geom name="pick_cube_25_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_26" pos="2.971 1.810 3.620"><freejoint name="pick_cube_26_free"/><geom name="pick_cube_26_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_27" pos="3.091 1.810 3.620"><freejoint name="pick_cube_27_free"/><geom name="pick_cube_27_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_28" pos="2.971 1.690 3.505"><freejoint name="pick_cube_28_free"/><geom name="pick_cube_28_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_29" pos="3.091 1.690 3.505"><freejoint name="pick_cube_29_free"/><geom name="pick_cube_29_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_30" pos="2.971 1.810 3.505"><freejoint name="pick_cube_30_free"/><geom name="pick_cube_30_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_31" pos="3.091 1.810 3.505"><freejoint name="pick_cube_31_free"/><geom name="pick_cube_31_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_32" pos="2.971 1.690 3.390"><freejoint name="pick_cube_32_free"/><geom name="pick_cube_32_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_33" pos="3.091 1.690 3.390"><freejoint name="pick_cube_33_free"/><geom name="pick_cube_33_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_34" pos="2.971 1.810 3.390"><freejoint name="pick_cube_34_free"/><geom name="pick_cube_34_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+    <body name="pick_cube_35" pos="3.091 1.810 3.390"><freejoint name="pick_cube_35_free"/><geom name="pick_cube_35_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
+
+    <!-- Mobile rover r0_ (spawn facing dome center). -->
+    <body name="r0_simple_rover" pos="-0.0000 -3.0500 3.5500" quat="0.707107 0.000000 0.000000 -0.707107">
+      <freejoint name="r0_rover_free"/>
+      <geom name="r0_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="3.0" contype="0" conaffinity="0"/>
+      <geom name="r0_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
+      <!-- Front-down POV camera (30 deg below horizontal, pointing rover-local +x). -->
+      <camera name="r0_front_cam" pos="0.30 0 0.20" quat="0.866 0 -0.5 0" fovy="60"/>
+
+      <body name="r0_wheel_fl" pos="0.24 0.31 -0.1">
+        <joint name="r0_wheel_fl_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r0_wheel_fl_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r0_wheel_fr" pos="0.24 -0.31 -0.1">
+        <joint name="r0_wheel_fr_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r0_wheel_fr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r0_wheel_rl" pos="-0.24 0.31 -0.1">
+        <joint name="r0_wheel_rl_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r0_wheel_rl_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r0_wheel_rr" pos="-0.24 -0.31 -0.1">
+        <joint name="r0_wheel_rr_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r0_wheel_rr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+
+      <body name="r0_pick_place_arm" pos="0 0 0.09">
+        <geom name="r0_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="2.0" contype="0" conaffinity="0"/>
+        <body name="r0_arm_yaw_body" pos="0 0 0.09">
+          <joint name="r0_arm_yaw" type="hinge" axis="0 0 1" range="-100 100" damping="1.2"/>
+          <geom name="r0_arm_yaw_hub" type="sphere" size="0.075" material="arm_joint_mat" mass="0.4" contype="0" conaffinity="0"/>
+          <body name="r0_arm_upper" pos="0 0 0">
+            <joint name="r0_arm_shoulder" type="hinge" axis="0 1 0" range="-120 80" damping="1.2"/>
+            <geom name="r0_arm_upper_link" type="capsule" fromto="0 0 0 0.42 0 0" size="0.035" material="arm_mat" mass="0.5" contype="0" conaffinity="0"/>
+            <body name="r0_arm_forearm" pos="0.42 0 0">
+              <joint name="r0_arm_elbow" type="hinge" axis="0 1 0" range="-110 170" damping="1.0"/>
+              <geom name="r0_arm_elbow_hub" type="sphere" size="0.055" material="arm_joint_mat" mass="0.25" contype="0" conaffinity="0"/>
+              <geom name="r0_arm_forearm_link" type="capsule" fromto="0 0 0 0.34 0 0" size="0.03" material="arm_mat" mass="0.35" contype="0" conaffinity="0"/>
+              <body name="r0_arm_wrist_body" pos="0.34 0 0">
+                <joint name="r0_arm_wrist" type="hinge" axis="0 1 0" range="-160 160" damping="0.8"/>
+                <geom name="r0_arm_wrist_hub" type="sphere" size="0.045" material="arm_joint_mat" mass="0.15" contype="0" conaffinity="0"/>
+                <geom name="r0_gripper_palm" type="box" size="0.045 0.09 0.025" pos="0.055 0 0" material="gripper_mat" mass="0.15" contype="0" conaffinity="0"/>
+                <site name="r0_ee_site" pos="0.12 0 0" size="0.025" rgba="1 0.2 0.1 1"/>
+                <body name="r0_left_finger" pos="0.085 0.075 -0.035">
+                  <joint name="r0_left_gripper_slide" type="slide" axis="0 1 0" range="-0.020 0" damping="0.3"/>
+                  <geom name="r0_left_finger_geom" type="box" size="0.035 0.012 0.06" material="gripper_mat" mass="0.05" contype="0" conaffinity="0"/>
+                </body>
+                <body name="r0_right_finger" pos="0.085 -0.075 -0.035">
+                  <joint name="r0_right_gripper_slide" type="slide" axis="0 1 0" range="0 0.020" damping="0.3"/>
+                  <geom name="r0_right_finger_geom" type="box" size="0.035 0.012 0.06" material="gripper_mat" mass="0.05" contype="0" conaffinity="0"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <!-- Mobile rover r1_ (spawn facing dome center). -->
+    <body name="r1_simple_rover" pos="-2.6414 1.5250 3.5500" quat="0.258819 0.000000 0.000000 0.965926">
+      <freejoint name="r1_rover_free"/>
+      <geom name="r1_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="3.0" contype="0" conaffinity="0"/>
+      <geom name="r1_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
+      <!-- Front-down POV camera (30 deg below horizontal, pointing rover-local +x). -->
+      <camera name="r1_front_cam" pos="0.30 0 0.20" quat="0.866 0 -0.5 0" fovy="60"/>
+
+      <body name="r1_wheel_fl" pos="0.24 0.31 -0.1">
+        <joint name="r1_wheel_fl_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r1_wheel_fl_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r1_wheel_fr" pos="0.24 -0.31 -0.1">
+        <joint name="r1_wheel_fr_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r1_wheel_fr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r1_wheel_rl" pos="-0.24 0.31 -0.1">
+        <joint name="r1_wheel_rl_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r1_wheel_rl_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r1_wheel_rr" pos="-0.24 -0.31 -0.1">
+        <joint name="r1_wheel_rr_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r1_wheel_rr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+
+      <body name="r1_pick_place_arm" pos="0 0 0.09">
+        <geom name="r1_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="2.0" contype="0" conaffinity="0"/>
+        <body name="r1_arm_yaw_body" pos="0 0 0.09">
+          <joint name="r1_arm_yaw" type="hinge" axis="0 0 1" range="-100 100" damping="1.2"/>
+          <geom name="r1_arm_yaw_hub" type="sphere" size="0.075" material="arm_joint_mat" mass="0.4" contype="0" conaffinity="0"/>
+          <body name="r1_arm_upper" pos="0 0 0">
+            <joint name="r1_arm_shoulder" type="hinge" axis="0 1 0" range="-120 80" damping="1.2"/>
+            <geom name="r1_arm_upper_link" type="capsule" fromto="0 0 0 0.42 0 0" size="0.035" material="arm_mat" mass="0.5" contype="0" conaffinity="0"/>
+            <body name="r1_arm_forearm" pos="0.42 0 0">
+              <joint name="r1_arm_elbow" type="hinge" axis="0 1 0" range="-110 170" damping="1.0"/>
+              <geom name="r1_arm_elbow_hub" type="sphere" size="0.055" material="arm_joint_mat" mass="0.25" contype="0" conaffinity="0"/>
+              <geom name="r1_arm_forearm_link" type="capsule" fromto="0 0 0 0.34 0 0" size="0.03" material="arm_mat" mass="0.35" contype="0" conaffinity="0"/>
+              <body name="r1_arm_wrist_body" pos="0.34 0 0">
+                <joint name="r1_arm_wrist" type="hinge" axis="0 1 0" range="-160 160" damping="0.8"/>
+                <geom name="r1_arm_wrist_hub" type="sphere" size="0.045" material="arm_joint_mat" mass="0.15" contype="0" conaffinity="0"/>
+                <geom name="r1_gripper_palm" type="box" size="0.045 0.09 0.025" pos="0.055 0 0" material="gripper_mat" mass="0.15" contype="0" conaffinity="0"/>
+                <site name="r1_ee_site" pos="0.12 0 0" size="0.025" rgba="1 0.2 0.1 1"/>
+                <body name="r1_left_finger" pos="0.085 0.075 -0.035">
+                  <joint name="r1_left_gripper_slide" type="slide" axis="0 1 0" range="-0.020 0" damping="0.3"/>
+                  <geom name="r1_left_finger_geom" type="box" size="0.035 0.012 0.06" material="gripper_mat" mass="0.05" contype="0" conaffinity="0"/>
+                </body>
+                <body name="r1_right_finger" pos="0.085 -0.075 -0.035">
+                  <joint name="r1_right_gripper_slide" type="slide" axis="0 1 0" range="0 0.020" damping="0.3"/>
+                  <geom name="r1_right_finger_geom" type="box" size="0.035 0.012 0.06" material="gripper_mat" mass="0.05" contype="0" conaffinity="0"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <!-- Mobile rover r2_ (spawn facing dome center). -->
+    <body name="r2_simple_rover" pos="2.6414 1.5250 3.5500" quat="0.965926 0.000000 0.000000 0.258819">
+      <freejoint name="r2_rover_free"/>
+      <geom name="r2_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="3.0" contype="0" conaffinity="0"/>
+      <geom name="r2_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
+      <!-- Front-down POV camera (30 deg below horizontal, pointing rover-local +x). -->
+      <camera name="r2_front_cam" pos="0.30 0 0.20" quat="0.866 0 -0.5 0" fovy="60"/>
+
+      <body name="r2_wheel_fl" pos="0.24 0.31 -0.1">
+        <joint name="r2_wheel_fl_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r2_wheel_fl_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r2_wheel_fr" pos="0.24 -0.31 -0.1">
+        <joint name="r2_wheel_fr_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r2_wheel_fr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r2_wheel_rl" pos="-0.24 0.31 -0.1">
+        <joint name="r2_wheel_rl_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r2_wheel_rl_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+      <body name="r2_wheel_rr" pos="-0.24 -0.31 -0.1">
+        <joint name="r2_wheel_rr_joint" type="hinge" axis="0 1 0" damping="0.4"/>
+        <geom name="r2_wheel_rr_geom" type="cylinder" size="0.13 0.055" zaxis="0 1 0" material="rover_wheel_mat" mass="0.35" condim="6" friction="1.2 0.005 0.0001" contype="2" conaffinity="4"/>
+      </body>
+
+      <body name="r2_pick_place_arm" pos="0 0 0.09">
+        <geom name="r2_arm_base" type="cylinder" size="0.08 0.045" pos="0 0 0.045" material="arm_joint_mat" mass="2.0" contype="0" conaffinity="0"/>
+        <body name="r2_arm_yaw_body" pos="0 0 0.09">
+          <joint name="r2_arm_yaw" type="hinge" axis="0 0 1" range="-100 100" damping="1.2"/>
+          <geom name="r2_arm_yaw_hub" type="sphere" size="0.075" material="arm_joint_mat" mass="0.4" contype="0" conaffinity="0"/>
+          <body name="r2_arm_upper" pos="0 0 0">
+            <joint name="r2_arm_shoulder" type="hinge" axis="0 1 0" range="-120 80" damping="1.2"/>
+            <geom name="r2_arm_upper_link" type="capsule" fromto="0 0 0 0.42 0 0" size="0.035" material="arm_mat" mass="0.5" contype="0" conaffinity="0"/>
+            <body name="r2_arm_forearm" pos="0.42 0 0">
+              <joint name="r2_arm_elbow" type="hinge" axis="0 1 0" range="-110 170" damping="1.0"/>
+              <geom name="r2_arm_elbow_hub" type="sphere" size="0.055" material="arm_joint_mat" mass="0.25" contype="0" conaffinity="0"/>
+              <geom name="r2_arm_forearm_link" type="capsule" fromto="0 0 0 0.34 0 0" size="0.03" material="arm_mat" mass="0.35" contype="0" conaffinity="0"/>
+              <body name="r2_arm_wrist_body" pos="0.34 0 0">
+                <joint name="r2_arm_wrist" type="hinge" axis="0 1 0" range="-160 160" damping="0.8"/>
+                <geom name="r2_arm_wrist_hub" type="sphere" size="0.045" material="arm_joint_mat" mass="0.15" contype="0" conaffinity="0"/>
+                <geom name="r2_gripper_palm" type="box" size="0.045 0.09 0.025" pos="0.055 0 0" material="gripper_mat" mass="0.15" contype="0" conaffinity="0"/>
+                <site name="r2_ee_site" pos="0.12 0 0" size="0.025" rgba="1 0.2 0.1 1"/>
+                <body name="r2_left_finger" pos="0.085 0.075 -0.035">
+                  <joint name="r2_left_gripper_slide" type="slide" axis="0 1 0" range="-0.020 0" damping="0.3"/>
+                  <geom name="r2_left_finger_geom" type="box" size="0.035 0.012 0.06" material="gripper_mat" mass="0.05" contype="0" conaffinity="0"/>
+                </body>
+                <body name="r2_right_finger" pos="0.085 -0.075 -0.035">
+                  <joint name="r2_right_gripper_slide" type="slide" axis="0 1 0" range="0 0.020" damping="0.3"/>
+                  <geom name="r2_right_finger_geom" type="box" size="0.035 0.012 0.06" material="gripper_mat" mass="0.05" contype="0" conaffinity="0"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <!-- Lightweight primitive Ingenuity stand-in kept as scenery. -->
+    <body name="ingenuity_display" pos="-3 -3 3.85" euler="0 0 -35">
+      <geom name="ingenuity_body" type="box" size="0.11 0.08 0.07" pos="0 0 0" material="ingenuity_body_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_mast" type="cylinder" size="0.012 0.32" pos="0 0 0.32" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_top_blade_a" type="box" size="0.55 0.025 0.006" pos="0 0 0.66" material="ingenuity_blades_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_top_blade_b" type="box" size="0.025 0.55 0.006" pos="0 0 0.62" material="ingenuity_blades_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_leg_1" type="capsule" fromto="0.08 0.06 -0.03 0.35 0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_leg_2" type="capsule" fromto="-0.08 0.06 -0.03 -0.35 0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_leg_3" type="capsule" fromto="0.08 -0.06 -0.03 0.35 -0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+      <geom name="ingenuity_leg_4" type="capsule" fromto="-0.08 -0.06 -0.03 -0.35 -0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="r0_wheel_fl_motor" joint="r0_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_fr_motor" joint="r0_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_rl_motor" joint="r0_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_rr_motor" joint="r0_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <position name="r0_arm_yaw_pos" joint="r0_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
+    <position name="r0_arm_shoulder_pos" joint="r0_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
+    <position name="r0_arm_elbow_pos" joint="r0_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
+    <position name="r0_arm_wrist_pos" joint="r0_arm_wrist" kp="25" ctrlrange="-2.793 2.793" ctrllimited="true"/>
+    <position name="r0_left_gripper_pos" joint="r0_left_gripper_slide" kp="60" ctrlrange="-0.020 0" ctrllimited="true"/>
+    <position name="r0_right_gripper_pos" joint="r0_right_gripper_slide" kp="60" ctrlrange="0 0.020" ctrllimited="true"/>
+    <motor name="r1_wheel_fl_motor" joint="r1_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_fr_motor" joint="r1_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_rl_motor" joint="r1_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_rr_motor" joint="r1_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <position name="r1_arm_yaw_pos" joint="r1_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
+    <position name="r1_arm_shoulder_pos" joint="r1_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
+    <position name="r1_arm_elbow_pos" joint="r1_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
+    <position name="r1_arm_wrist_pos" joint="r1_arm_wrist" kp="25" ctrlrange="-2.793 2.793" ctrllimited="true"/>
+    <position name="r1_left_gripper_pos" joint="r1_left_gripper_slide" kp="60" ctrlrange="-0.020 0" ctrllimited="true"/>
+    <position name="r1_right_gripper_pos" joint="r1_right_gripper_slide" kp="60" ctrlrange="0 0.020" ctrllimited="true"/>
+    <motor name="r2_wheel_fl_motor" joint="r2_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_fr_motor" joint="r2_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_rl_motor" joint="r2_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_rr_motor" joint="r2_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <position name="r2_arm_yaw_pos" joint="r2_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
+    <position name="r2_arm_shoulder_pos" joint="r2_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
+    <position name="r2_arm_elbow_pos" joint="r2_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
+    <position name="r2_arm_wrist_pos" joint="r2_arm_wrist" kp="25" ctrlrange="-2.793 2.793" ctrllimited="true"/>
+    <position name="r2_left_gripper_pos" joint="r2_left_gripper_slide" kp="60" ctrlrange="-0.020 0" ctrllimited="true"/>
+    <position name="r2_right_gripper_pos" joint="r2_right_gripper_slide" kp="60" ctrlrange="0 0.020" ctrllimited="true"/>
+  </actuator>
+</mujoco>
+
