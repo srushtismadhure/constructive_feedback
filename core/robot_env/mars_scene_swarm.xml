@@ -10,13 +10,14 @@
   </default>
 
   <asset>
-    <texture name="sky" type="skybox" builtin="gradient" rgb1="0.03 0.02 0.05" rgb2="0.65 0.32 0.18" width="512" height="512"/>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1="0.01 0.02 0.08" rgb2="0.04 0.08 0.22" width="512" height="512"/>
     <texture name="soil_tex" type="2d" builtin="gradient" rgb1="0.72 0.35 0.22" rgb2="0.42 0.18 0.09" width="2048" height="2048"/>
     <material name="terrain_mat" texture="soil_tex" texrepeat="8 8" shininess="0.03" specular="0.03"/>
     <material name="ingenuity_body_mat" rgba="0.92 0.92 0.86 1"/>
     <material name="ingenuity_blades_mat" rgba="0.08 0.08 0.08 1"/>
     <material name="ingenuity_legs_mat" rgba="0.02 0.02 0.02 1"/>
     <material name="rover_chassis_mat" rgba="0.88 0.66 0.18 1" shininess="0.35" specular="0.2"/>
+    <material name="printer_body_mat" rgba="0.88 0.88 0.86 1" shininess="0.35" specular="0.2"/>
     <material name="rover_panel_mat" rgba="0.05 0.12 0.25 1" shininess="0.5" specular="0.35"/>
     <material name="rover_wheel_mat" rgba="0.08 0.08 0.08 1"/>
     <material name="arm_mat" rgba="0.62 0.68 0.72 1" shininess="0.25" specular="0.15"/>
@@ -24,9 +25,13 @@
     <material name="gripper_mat" rgba="0.08 0.08 0.08 1"/>
     <material name="cube_mat" rgba="0.68 0.25 0.16 1" shininess="0.2" specular="0.1"/>
     <material name="target_mat" rgba="0.15 0.8 0.25 0.45" shininess="0.1" specular="0.05"/>
+    <material name="star_mat" rgba="1.0 1.0 0.92 1" emission="1.0"/>
 
     <mesh name="mars_terrain" file="Mars - Spirit Landing Site_smooth.stl" scale="0.25 0.25 0.25"/>
     <hfield name="mars_heightfield" file="Mars - Spirit Landing Site_heightfield.png" size="21.219839 20.501948 2.819581 0.05"/>
+    <mesh name="sls_rocket" file="rocket/sls_decimated.stl" scale="0.05 0.05 0.05"/>
+    <mesh name="chandra" file="rocket/chandra.stl" scale="0.15 0.15 0.15"/>
+    <mesh name="habitat_p1" file="habitat/habitat_p1.stl" scale="0.018 0.018 0.018"/>
   </asset>
 
   <worldbody>
@@ -36,6 +41,10 @@
     <geom name="terrain_visual" type="mesh" mesh="mars_terrain" material="terrain_mat" contype="0" conaffinity="0" group="2"/>
     <geom name="terrain_collision" type="hfield" hfield="mars_heightfield" pos="4.536614 -5.097652 3.032014" rgba="0 0 0 0" contype="0" conaffinity="0" group="2"/>
     <geom name="rover_drive_plane" type="plane" pos="0 0 3.31" size="8 8 0.1" material="terrain_mat" condim="6" group="1" contype="1" conaffinity="3"/>
+
+    <!-- Dome footprint marker at origin. -->
+    <geom name="target_pad" type="cylinder" pos="0 0 3.312" size="0.30 0.004" material="target_mat" rgba="1 1 1 0" contype="0" conaffinity="0"/>
+    <site name="target_site" pos="0 0 3.39" size="0.02" rgba="0 0 0 0"/>
 
     <!-- 36-cube layout: three 2x2x3 piles, one per rover. Indices 0-11 = pile 0, 12-23 = pile 1, 24-35 = pile 2. -->
     <body name="pick_cube_0" pos="-0.060 -3.560 3.620"><freejoint name="pick_cube_0_free"/><geom name="pick_cube_0_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
@@ -76,7 +85,7 @@
     <body name="pick_cube_35" pos="3.091 1.810 3.390"><freejoint name="pick_cube_35_free"/><geom name="pick_cube_35_geom" type="box" size="0.055 0.055 0.055" material="cube_mat" mass="0.08" condim="6" friction="1.2 0.05 0.02" contype="1" conaffinity="2"/></body>
 
     <!-- Mobile rover r0_ (spawn facing dome center). -->
-    <body name="r0_simple_rover" pos="-0.0000 -3.0500 3.5500" quat="0.707107 0.000000 0.000000 -0.707107">
+    <body name="r0_simple_rover" pos="-0.0000 -3.0000 3.5500" quat="0.707107 0.000000 0.000000 -0.707107">
       <freejoint name="r0_rover_free"/>
       <geom name="r0_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r0_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
@@ -132,7 +141,7 @@
       </body>
     </body>
     <!-- Mobile rover r1_ (spawn facing dome center). -->
-    <body name="r1_simple_rover" pos="-2.6414 1.5250 3.5500" quat="0.258819 0.000000 0.000000 0.965926">
+    <body name="r1_simple_rover" pos="-2.5981 1.5000 3.5500" quat="0.258819 0.000000 0.000000 0.965926">
       <freejoint name="r1_rover_free"/>
       <geom name="r1_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r1_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
@@ -188,7 +197,7 @@
       </body>
     </body>
     <!-- Mobile rover r2_ (spawn facing dome center). -->
-    <body name="r2_simple_rover" pos="2.6414 1.5250 3.5500" quat="0.965926 0.000000 0.000000 0.258819">
+    <body name="r2_simple_rover" pos="2.5981 1.5000 3.5500" quat="0.965926 0.000000 0.000000 0.258819">
       <freejoint name="r2_rover_free"/>
       <geom name="r2_rover_chassis" type="box" size="0.36 0.24 0.09" pos="0 0 0" material="rover_chassis_mat" mass="6.0" contype="0" conaffinity="0"/>
       <geom name="r2_rover_solar_panel" type="box" size="0.14 0.22 0.01" pos="-0.22 0 0.105" material="rover_panel_mat" mass="0.2" contype="0" conaffinity="0"/>
@@ -243,6 +252,27 @@
         </body>
       </body>
     </body>
+    <!-- Five mobile printers build a separate dome east of the swarm. Each nozzle is on a three-joint arm rigidly attached to its tracked base. -->
+    <body name="printer_0_base" pos="7.1000 -3.5000 3.4900" euler="0 0 180"><freejoint name="printer_0_free"/>
+      <geom name="printer_0_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_0_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_0_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_0_arm_yaw" pos="0 0 0.22"><joint name="printer_0_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_0_arm_upper"><joint name="printer_0_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_0_arm_forearm" pos="1.75 0 0"><joint name="printer_0_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_0_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
+    <body name="printer_1_base" pos="5.3034 -1.0271 3.4900" euler="0 0 252"><freejoint name="printer_1_free"/>
+      <geom name="printer_1_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_1_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_1_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_1_arm_yaw" pos="0 0 0.22"><joint name="printer_1_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_1_arm_upper"><joint name="printer_1_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_1_arm_forearm" pos="1.75 0 0"><joint name="printer_1_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_1_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
+    <body name="printer_2_base" pos="2.3966 -1.9714 3.4900" euler="0 0 324"><freejoint name="printer_2_free"/>
+      <geom name="printer_2_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_2_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_2_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_2_arm_yaw" pos="0 0 0.22"><joint name="printer_2_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_2_arm_upper"><joint name="printer_2_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_2_arm_forearm" pos="1.75 0 0"><joint name="printer_2_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_2_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
+    <body name="printer_3_base" pos="2.3966 -5.0286 3.4900" euler="0 0 36"><freejoint name="printer_3_free"/>
+      <geom name="printer_3_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_3_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_3_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_3_arm_yaw" pos="0 0 0.22"><joint name="printer_3_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_3_arm_upper"><joint name="printer_3_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_3_arm_forearm" pos="1.75 0 0"><joint name="printer_3_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_3_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
+    <body name="printer_4_base" pos="5.3034 -5.9729 3.4900" euler="0 0 108"><freejoint name="printer_4_free"/>
+      <geom name="printer_4_chassis" type="box" size="0.78 0.54 0.18" material="printer_body_mat" mass="20" contype="0" conaffinity="0"/><geom name="printer_4_track_left" type="box" size="0.82 0.10 0.15" pos="0 0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/><geom name="printer_4_track_right" type="box" size="0.82 0.10 0.15" pos="0 -0.60 -0.12" material="rover_wheel_mat" contype="0" conaffinity="0"/>
+      <body name="printer_4_arm_yaw" pos="0 0 0.22"><joint name="printer_4_arm_yaw_joint" type="hinge" axis="0 0 1" range="-150 150"/><geom type="cylinder" size="0.18 0.12" material="arm_joint_mat" contype="0" conaffinity="0"/><body name="printer_4_arm_upper"><joint name="printer_4_arm_shoulder_joint" type="hinge" axis="0 1 0" range="-80 80"/><geom type="capsule" fromto="0 0 0 1.75 0 0" size="0.10" material="arm_mat" contype="0" conaffinity="0"/><body name="printer_4_arm_forearm" pos="1.75 0 0"><joint name="printer_4_arm_elbow_joint" type="hinge" axis="0 1 0" range="-125 125"/><geom type="capsule" fromto="0 0 0 1.65 0 0" size="0.085" material="arm_mat" contype="0" conaffinity="0"/><body pos="1.65 0 0"><geom type="capsule" fromto="0 0 0 0 0 -0.20" size="0.055" material="arm_joint_mat" contype="0" conaffinity="0"/><site name="printer_4_tip" pos="0 0 -0.20" size="0.025" rgba="0.84 0.35 0.12 1"/></body></body></body></body>
+    </body>
     <!-- Lightweight primitive Ingenuity stand-in kept as scenery. -->
     <body name="ingenuity_display" pos="-3 -3 3.85" euler="0 0 -35">
       <geom name="ingenuity_body" type="box" size="0.11 0.08 0.07" pos="0 0 0" material="ingenuity_body_mat" contype="0" conaffinity="0"/>
@@ -254,33 +284,114 @@
       <geom name="ingenuity_leg_3" type="capsule" fromto="0.08 -0.06 -0.03 0.35 -0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
       <geom name="ingenuity_leg_4" type="capsule" fromto="-0.08 -0.06 -0.03 -0.35 -0.28 -0.34" size="0.012" material="ingenuity_legs_mat" contype="0" conaffinity="0"/>
     </body>
+
+    <!-- Decorative SLS Block 1 rocket. Scale 0.05 yields a ~10 m model. MuJoCo
+         recentres the mesh by ~2.55 in z, so pos.z=3.31 lands the base on the
+         drive plane. No collisions. -->
+    <geom name="sls_rocket" type="mesh" mesh="sls_rocket" pos="-5.5 3.5 3.31"
+          material="ingenuity_body_mat" contype="0" conaffinity="0" group="2"/>
+
+    <!-- Decorative Chandra X-ray Observatory hovering above the build site.
+         Scale 0.15 -> ~3 m body. euler="90 -90 0" adds a 90-deg pitch on top of
+         the previous orientation; pos drops it lower and pushes it past the
+         dome in -y, away from the default viewer (azimuth 90 looks from +y). -->
+    <geom name="chandra_satellite" type="mesh" mesh="chandra" pos="5.0 8.0 5.5"
+          euler="90 -90 0" material="ingenuity_body_mat" contype="0" conaffinity="0" group="2"/>
+
+    <!-- Decorative Habitat Demonstration Unit (part 1). Scale 0.018 -> ~7 m wide.
+         euler="90 0 0" lays the long axis horizontal. pos.z=3.10 lands the base
+         on the drive plane (z=3.31) after MuJoCo's mesh-centre offset. -->
+    <geom name="habitat_unit" type="mesh" mesh="habitat_p1" pos="8.0 4.5 3.10"
+          euler="90 0 0" material="ingenuity_body_mat" contype="0" conaffinity="0" group="2"/>
+
+    <!-- 60 emissive starfield spheres scattered overhead. seed=42, sizes 0.025-0.10 m. -->
+    <geom name="star_0" type="sphere" pos="5.02 -17.1 16.4" size="0.042" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_1" type="sphere" pos="8.51 6.36 26.27" size="0.032" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_2" type="sphere" pos="-2.81 -16.93 15.5" size="0.063" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_3" type="sphere" pos="-17.04 -10.84 22.4" size="0.066" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_4" type="sphere" pos="-10.06 3.21 24.95" size="0.025" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_5" type="sphere" pos="11.01 7.13 17.44" size="0.037" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_6" type="sphere" pos="16.46 -5.88 13.48" size="0.032" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_7" type="sphere" pos="12.51 3.73 24.91" size="0.08" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_8" type="sphere" pos="1.3 17.03 18.06" size="0.066" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_9" type="sphere" pos="11.86 4.27 25.79" size="0.068" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_10" type="sphere" pos="7.36 -16.35 15.65" size="0.047" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_11" type="sphere" pos="-15.13 -9.62 13.62" size="0.046" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_12" type="sphere" pos="4.88 -4.87 17.92" size="0.041" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_13" type="sphere" pos="-8.39 15.72 22.37" size="0.071" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_14" type="sphere" pos="-11.84 8.25 14.61" size="0.053" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_15" type="sphere" pos="17.62 5.04 20.91" size="0.076" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_16" type="sphere" pos="12.34 9.94 15.66" size="0.027" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_17" type="sphere" pos="-6.64 -8.36 15.38" size="0.096" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_18" type="sphere" pos="13.55 -6.67 22.49" size="0.055" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_19" type="sphere" pos="14.92 -1.48 16.24" size="0.043" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_20" type="sphere" pos="2.21 -8.54 21.35" size="0.092" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_21" type="sphere" pos="-3.62 -10.1 27.96" size="0.063" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_22" type="sphere" pos="-14.73 -16.3 13.75" size="0.072" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_23" type="sphere" pos="10.51 -2.8 13.02" size="0.054" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_24" type="sphere" pos="17.86 1.05 27.54" size="0.09" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_25" type="sphere" pos="-17.59 7.95 22.91" size="0.065" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_26" type="sphere" pos="-8.39 5.07 13.78" size="0.058" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_27" type="sphere" pos="-1.67 16.34 26.01" size="0.045" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_28" type="sphere" pos="0.02 -11.57 26.6" size="0.09" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_29" type="sphere" pos="-7.26 5.0 21.74" size="0.036" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_30" type="sphere" pos="9.45 1.42 24.46" size="0.065" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_31" type="sphere" pos="-17.98 -6.33 12.31" size="0.095" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_32" type="sphere" pos="13.63 11.94 16.92" size="0.029" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_33" type="sphere" pos="13.61 16.09 13.37" size="0.061" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_34" type="sphere" pos="-15.51 9.38 24.25" size="0.035" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_35" type="sphere" pos="-0.89 1.79 16.24" size="0.09" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_36" type="sphere" pos="-2.77 -10.38 20.63" size="0.08" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_37" type="sphere" pos="-10.76 -6.78 27.92" size="0.074" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_38" type="sphere" pos="-2.23 0.63 13.94" size="0.042" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_39" type="sphere" pos="-5.83 3.18 15.68" size="0.042" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_40" type="sphere" pos="-15.44 4.72 15.66" size="0.093" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_41" type="sphere" pos="12.95 -15.45 15.81" size="0.075" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_42" type="sphere" pos="-10.29 -13.24 26.97" size="0.068" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_43" type="sphere" pos="-0.98 10.25 24.92" size="0.039" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_44" type="sphere" pos="-14.51 -2.48 18.78" size="0.06" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_45" type="sphere" pos="8.25 6.24 27.75" size="0.032" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_46" type="sphere" pos="-3.51 -5.79 25.79" size="0.044" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_47" type="sphere" pos="-11.15 -1.85 18.75" size="0.046" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_48" type="sphere" pos="-9.01 15.24 19.09" size="0.09" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_49" type="sphere" pos="1.81 -16.18 27.99" size="0.088" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_50" type="sphere" pos="16.88 15.35 25.58" size="0.037" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_51" type="sphere" pos="-0.52 -10.31 18.42" size="0.029" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_52" type="sphere" pos="-4.36 17.47 16.24" size="0.084" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_53" type="sphere" pos="-1.62 -2.77 27.32" size="0.1" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_54" type="sphere" pos="2.01 7.86 14.48" size="0.047" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_55" type="sphere" pos="16.87 2.85 20.68" size="0.081" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_56" type="sphere" pos="-15.94 3.03 20.05" size="0.089" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_57" type="sphere" pos="-12.33 16.59 13.28" size="0.039" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_58" type="sphere" pos="3.42 6.31 15.76" size="0.034" material="star_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="star_59" type="sphere" pos="14.05 -9.14 21.51" size="0.071" material="star_mat" contype="0" conaffinity="0" group="2"/>
   </worldbody>
 
   <actuator>
-    <motor name="r0_wheel_fl_motor" joint="r0_wheel_fl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r0_wheel_fr_motor" joint="r0_wheel_fr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r0_wheel_rl_motor" joint="r0_wheel_rl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r0_wheel_rr_motor" joint="r0_wheel_rr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
+    <motor name="r0_wheel_fl_motor" joint="r0_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_fr_motor" joint="r0_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_rl_motor" joint="r0_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r0_wheel_rr_motor" joint="r0_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
     <position name="r0_arm_yaw_pos" joint="r0_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
     <position name="r0_arm_shoulder_pos" joint="r0_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
     <position name="r0_arm_elbow_pos" joint="r0_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
     <position name="r0_arm_wrist_pos" joint="r0_arm_wrist" kp="25" ctrlrange="-2.793 2.793" ctrllimited="true"/>
     <position name="r0_left_gripper_pos" joint="r0_left_gripper_slide" kp="60" ctrlrange="-0.020 0" ctrllimited="true"/>
     <position name="r0_right_gripper_pos" joint="r0_right_gripper_slide" kp="60" ctrlrange="0 0.020" ctrllimited="true"/>
-    <motor name="r1_wheel_fl_motor" joint="r1_wheel_fl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r1_wheel_fr_motor" joint="r1_wheel_fr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r1_wheel_rl_motor" joint="r1_wheel_rl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r1_wheel_rr_motor" joint="r1_wheel_rr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
+    <motor name="r1_wheel_fl_motor" joint="r1_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_fr_motor" joint="r1_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_rl_motor" joint="r1_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r1_wheel_rr_motor" joint="r1_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
     <position name="r1_arm_yaw_pos" joint="r1_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
     <position name="r1_arm_shoulder_pos" joint="r1_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
     <position name="r1_arm_elbow_pos" joint="r1_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
     <position name="r1_arm_wrist_pos" joint="r1_arm_wrist" kp="25" ctrlrange="-2.793 2.793" ctrllimited="true"/>
     <position name="r1_left_gripper_pos" joint="r1_left_gripper_slide" kp="60" ctrlrange="-0.020 0" ctrllimited="true"/>
     <position name="r1_right_gripper_pos" joint="r1_right_gripper_slide" kp="60" ctrlrange="0 0.020" ctrllimited="true"/>
-    <motor name="r2_wheel_fl_motor" joint="r2_wheel_fl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r2_wheel_fr_motor" joint="r2_wheel_fr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r2_wheel_rl_motor" joint="r2_wheel_rl_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
-    <motor name="r2_wheel_rr_motor" joint="r2_wheel_rr_joint" gear="1" ctrlrange="-10.0 10.0" ctrllimited="true"/>
+    <motor name="r2_wheel_fl_motor" joint="r2_wheel_fl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_fr_motor" joint="r2_wheel_fr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_rl_motor" joint="r2_wheel_rl_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+    <motor name="r2_wheel_rr_motor" joint="r2_wheel_rr_joint" gear="1" ctrlrange="-5.0 5.0" ctrllimited="true"/>
     <position name="r2_arm_yaw_pos" joint="r2_arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
     <position name="r2_arm_shoulder_pos" joint="r2_arm_shoulder" kp="45" ctrlrange="-2.094 1.396" ctrllimited="true"/>
     <position name="r2_arm_elbow_pos" joint="r2_arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>

@@ -9,6 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        regolith: "#FF6B00",
+        "mars-burnt": "#B94300",
+        "solar-amber": "#FFB000",
+        "deep-space": "#07090B",
+        graphite: "#11161B",
+        panel: "#171C22",
+        "panel-dark": "#0B0D0F",
+        "off-white": "#F2F0EA",
+        "muted-text": "#8B918F",
+        "soft-gray": "#C6C7C2",
+        "success-green": "#4ADE80",
+        "warning-yellow": "#FACC15",
         mars: {
           dust: "#c1440e",
           rust: "#8b2500",
@@ -25,8 +37,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        mono: ["var(--font-geist-mono)", "monospace"],
-        sans: ["var(--font-geist-sans)", "sans-serif"],
+        mono: ["JetBrains Mono", "SFMono-Regular", "monospace"],
+        sans: ["Inter", "Arial", "sans-serif"],
       },
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
