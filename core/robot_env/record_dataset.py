@@ -7,11 +7,15 @@ dataset that lerobot can fine-tune a VLA on (e.g. pi0.5).
 Supported robots (`--robot`):
   - arm      MarsArmPickPlaceBridge — pick 20 cubes into a dome
   - printer  MarsPrinterBridge      — print a structure (--structure dome|wall|tower)
+  - swarm    MarsSwarmBridge        — 3 rovers build a dome; recorded Path B, i.e.
+             one independent episode PER rover (a single shared single-robot VLA),
+             manipulation phases only, each rover's prompt naming its dome sector.
 
 Run from `core/`:
     # validate the data pipeline with NO heavy deps (no lerobot/torch needed):
     uv run python robot_env/record_dataset.py --robot arm --dry-run
     uv run python robot_env/record_dataset.py --robot printer --structure tower --dry-run
+    uv run python robot_env/record_dataset.py --robot swarm --cubes-per-rover 2 --dry-run
 
     # write + push a real dataset (needs the `record` extra: uv sync --extra record,
     # and `huggingface-cli login` or HF_TOKEN):
@@ -218,10 +222,161 @@ def _record(spec: RecordSpec, repo_id: str, episodes: int, seed0: int, fps: int,
               f"(or `huggingface-cli upload {repo_id} {ds.root} --repo-type dataset`)")
 
 
+# ── Swarm (Path B: decentralised shared policy) ──────────────────────────────
+# The 3-rover swarm shares one sim, but for a single-robot VLA each rover is an
+# INDEPENDENT training stream: one LeRobot episode per rover. The per-rover state
+# is laid out exactly like the single arm (same proprio/godmode slices), and only
+# the manipulation phases (PICKING/PLACING) are recorded — navigation between the
+# pile and the dome is the orchestrator's job, not the 5-DoF arm policy's, so those
+# idle/STOW frames are dropped. Each rover's prompt encodes its dome sector.
+
+SWARM_SECTOR_NAMES = ["south", "northwest", "northeast"]  # r0/r1/r2 (270/150/30 deg)
+
+
+def _swarm_prompt(rover_idx: int) -> str:
+    return (f"Pick a crimson block from the pile and place it on the "
+            f"{SWARM_SECTOR_NAMES[rover_idx]} wedge of the dome.")
+
+
+def _swarm_spec() -> RecordSpec:
+    """Per-rover stream spec. Same 16-dim state layout as the single arm, so the
+    proprio/godmode slices and feature schema are reused verbatim."""
+    return RecordSpec(
+        name="swarm", robot_type="mars_swarm_rover_arm",
+        make_bridge=lambda render: None, reset_task_id="swarm",
+        make_actions=lambda: [],
+        proprio_idx=[0, 1, 2, 3, 4, 5, 6, 7, 14],
+        proprio_names=["arm_yaw", "arm_shoulder", "arm_elbow", "arm_wrist",
+                       "gripper", "ee_x", "ee_y", "ee_z", "holding"],
+        godmode_idx=[8, 9, 10, 11, 12, 13],
+        godmode_names=["cube_x", "cube_y", "cube_z", "target_x", "target_y", "target_z"],
+        action_names=["d_yaw", "d_shoulder", "d_elbow", "d_wrist", "gripper"],
+    )
+
+
+def _collect_swarm(spec: RecordSpec, cubes_per_rover: int, seed: int, on_frame) -> dict:
+    """Run the 3-rover scripted state machine once. ``on_frame(rover_idx, image,
+    state, godmode, action, prompt)`` fires for each rover on its manipulation
+    ticks only (obs captured before the action). Returns a progress summary."""
+    from run_swarm_demo import RoverAgent, State  # state machine = the oracle
+    from swarm_bridge import NUM_ROVERS, MarsSwarmBridge
+
+    bridge = MarsSwarmBridge(render=True)
+    bridge.reset(seed=seed)
+    if cubes_per_rover > 0:  # cap each rover's queue so a run finishes quickly
+        for r in bridge.rovers:
+            while len(r.dome_queue) > cubes_per_rover:
+                r.dome_queue.pop()
+    agents = [RoverAgent(i, bridge) for i in range(NUM_ROVERS)]
+    total_target = sum(len(r.dome_queue) for r in bridge.rovers)
+    prompts = [_swarm_prompt(i) for i in range(NUM_ROVERS)]
+
+    MAX_TICKS = 60000
+    for _ in range(MAX_TICKS):
+        actions = []
+        for i, agent in enumerate(agents):
+            # A manipulation action is emitted iff the rover is in PICKING/PLACING
+            # with queued arm actions left. Checked BEFORE tick() (which both returns
+            # the action and may transition state), so we capture the matching obs.
+            recordable = (agent.state in (State.PICKING, State.PLACING)
+                          and agent.action_idx < len(agent.action_queue))
+            obs = bridge.get_observation(i)[0] if recordable else None
+            action = agent.tick()
+            actions.append(action)
+            if recordable:
+                full = obs["observation/state"]
+                on_frame(i, obs["observation/image"],
+                         full[spec.proprio_idx].astype(np.float32),
+                         full[spec.godmode_idx].astype(np.float32),
+                         np.asarray(action, dtype=np.float32), prompts[i])
+        bridge.step(actions)
+        if all(a.state == State.DONE for a in agents):
+            break
+
+    placed = bridge.placed_count()
+    bridge.close()
+    return {"placed_count": placed, "total_waypoints": total_target,
+            "success": placed >= total_target}
+
+
+def _dry_run_swarm(spec: RecordSpec, cubes_per_rover: int, seed: int) -> None:
+    per_rover: dict[int, int] = {0: 0, 1: 0, 2: 0}
+    first: dict = {}
+
+    def on_frame(rover_idx, image, state, godmode, action, prompt):
+        per_rover[rover_idx] += 1
+        if not first:
+            first.update(img=image.shape, img_dtype=str(image.dtype),
+                         img_mean=round(float(image.mean()), 1),
+                         state=state.shape, godmode=godmode.shape, action=action.shape, task=prompt)
+
+    res = _collect_swarm(spec, cubes_per_rover, seed, on_frame)
+    print(f"  build: placed={res['placed_count']}/{res['total_waypoints']} success={res['success']}")
+    print(f"  per-rover manip frames: {per_rover}  (one episode each)")
+    print(f"\nfirst frame: {first}")
+    print(f"total frames: {sum(per_rover.values())}  (features: {list(_features(spec))})")
+    print(f"dry-run OK [{spec.name}] — valid per-rover (image, proprio, godmode, action) frames.")
+
+
+def _record_swarm(spec: RecordSpec, repo_id: str, cubes_per_rover: int, seed: int,
+                  fps: int, root: str | None, push: bool, overwrite: bool) -> None:
+    import shutil
+    from pathlib import Path
+    try:
+        from lerobot.datasets.lerobot_dataset import LeRobotDataset
+    except ImportError:
+        try:
+            from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+        except ImportError as exc:
+            raise SystemExit("lerobot not installed. From core/: `uv sync --extra record`.") from exc
+
+    target = Path(root) if root else Path("/tmp/lerobot") / repo_id
+    if target.exists():
+        if overwrite:
+            shutil.rmtree(target)
+        else:
+            raise SystemExit(f"{target} already exists. Re-run with --overwrite, or delete it.")
+
+    ds = LeRobotDataset.create(
+        repo_id=repo_id, fps=fps, features=_features(spec),
+        robot_type=spec.robot_type, root=str(target), use_videos=True,
+    )
+
+    # Run the sim ONCE (the rovers share physics), buffering each rover's frames,
+    # then write one episode per rover so each is an independent training example.
+    from swarm_bridge import NUM_ROVERS
+    buffers: dict[int, list[dict]] = {i: [] for i in range(NUM_ROVERS)}
+
+    def on_frame(rover_idx, image, state, godmode, action, prompt):
+        buffers[rover_idx].append({"observation.image": image, "observation.state": state,
+                                   "godmode": godmode, "action": action, "task": prompt})
+
+    res = _collect_swarm(spec, cubes_per_rover, seed, on_frame)
+    print(f"  build: placed={res['placed_count']}/{res['total_waypoints']} success={res['success']}")
+    for rover_idx in range(NUM_ROVERS):
+        for frame in buffers[rover_idx]:
+            ds.add_frame(frame)
+        ds.save_episode()
+        print(f"  rover {rover_idx} ({SWARM_SECTOR_NAMES[rover_idx]}): "
+              f"{len(buffers[rover_idx])} frames saved as episode {rover_idx}")
+    ds.finalize()
+
+    print(f"\nLeRobot v3 dataset written: {ds.root}")
+    if push:
+        print(f"pushing to HF Hub: {repo_id} …")
+        ds.push_to_hub()
+        print(f"done → https://huggingface.co/datasets/{repo_id}")
+    else:
+        print(f"to publish: huggingface-cli login  &&  re-run with --push "
+              f"(or `huggingface-cli upload {repo_id} {ds.root} --repo-type dataset`)")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Record a scripted oracle into a LeRobot v3 dataset.")
-    ap.add_argument("--robot", choices=["arm", "printer"], default="arm")
+    ap.add_argument("--robot", choices=["arm", "printer", "swarm"], default="arm")
     ap.add_argument("--structure", default="dome", help="printer only: dome|wall|tower")
+    ap.add_argument("--cubes-per-rover", type=int, default=4,
+                    help="swarm only: cap each rover's dome queue (default 4)")
     ap.add_argument("--repo-id", help="HF dataset id, e.g. your-user/mars-print-tower")
     ap.add_argument("--episodes", type=int, default=1)
     ap.add_argument("--seed", type=int, default=0, help="first episode seed")
@@ -231,6 +386,17 @@ def main() -> None:
     ap.add_argument("--overwrite", action="store_true", help="delete existing local dataset dir")
     ap.add_argument("--dry-run", action="store_true", help="validate frames without lerobot")
     args = ap.parse_args()
+
+    if args.robot == "swarm":
+        spec = _swarm_spec()
+        if args.dry_run:
+            _dry_run_swarm(spec, args.cubes_per_rover, args.seed)
+            return
+        if not args.repo_id:
+            ap.error("--repo-id is required unless --dry-run")
+        _record_swarm(spec, args.repo_id, args.cubes_per_rover, args.seed, args.fps,
+                      args.root, args.push, args.overwrite)
+        return
 
     spec = _build_spec(args.robot, args.structure)
 

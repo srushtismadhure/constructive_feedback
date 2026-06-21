@@ -29,6 +29,16 @@ dependencies = [
 # Heavy (pulls torch) — only sync this when you're actually recording/training:
 #   uv sync --extra record
 record = ["lerobot>=0.1.0"]
+# Serving the swarm manip task to a VLA over the robot (openpi/0) capability, and the
+# eval runner (swarm_hud_env.py, run_swarm_vla.py). Lightweight — no torch:
+#   uv sync --extra robot
+robot = ["hud-python[robot]>=0.6.5"]
+# Remote pi0.5 policy server on a GPU box / Modal (robot_env/serve/*). modal is in the
+# base deps; this adds the websocket transport:
+#   uv sync --extra serve
+serve = ["hud-python[robot]>=0.6.5", "websockets>=12.0"]
+# pi0.5 policy classes for in-process / server-side inference (alias of `record`'s torch):
+vla = ["lerobot>=0.1.0"]
 
 [dependency-groups]
 dev = [

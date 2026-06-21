@@ -284,6 +284,9 @@ uv run python robot_env/record_dataset.py --robot arm \
 
 uv run python robot_env/record_dataset.py --robot printer --structure tower \
     --repo-id <hf-user>/mars-print-tower --push
+
+uv run python robot_env/record_dataset.py --robot swarm --cubes-per-rover 4 \
+    --repo-id changminbark/mars-construction-swarm --push
 ```
 
 Result: a dataset at `https://huggingface.co/datasets/<hf-user>/...`, ready for `lerobot`
