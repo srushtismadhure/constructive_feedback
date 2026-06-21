@@ -23,9 +23,9 @@ How each sponsor's tech is used in this project:
   finetuning (`core/train/sft_modal.py`), the reinforcement-finetuning loop
   (`core/train/rl_loop.py`), and the policy inference server
   (`core/robot_env/serve/pi05_modal_mars.py`). See `TRAINING.md`.
-- **MiniMax** — two places. (1) **MiniMax M3** is the LLM coordinator that assigns robots to
+- **MiniMax** — three places. (1) **MiniMax M3** is the LLM coordinator that assigns robots to
   build tasks (`core/orchestration/coordinator.py`). (2) **MiniMax image-to-video** generates
-  the cinematic Mars build clips in the web UI (`frontend/scripts/generate-mars-video.ts`).
+  the cinematic Mars build clips in the web UI (`frontend/scripts/generate-mars-video.ts`). (3) video and audio generation for demo video.
 - **Fireworks** — serves MiniMax M3 via its OpenAI-compatible inference API
   (`api.fireworks.ai`); the coordinator falls back to a greedy heuristic if the key is absent.
 - **Google DeepMind** — **MuJoCo** is the physics + rendering engine for the entire sim
