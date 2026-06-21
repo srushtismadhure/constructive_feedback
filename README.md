@@ -15,7 +15,7 @@ constructive_feedback/
 │   ├── main.py          FastAPI + Modal backend — the orchestration API
 │   ├── orchestration/   LangGraph state machine (plan → assign → dispatch → monitor → replan)
 │   │   └── mujoco_adapter.py   RoverEnvAdapter: bridges robot_env to the Brain's EnvInterface
-│   ├── robot_env/       Mars MuJoCo sim — differential-drive rover + HUD RobotBridge
+│   ├── robot_env/       Mars MuJoCo sim — rover + pick-place arm bridges; record_dataset.py (VLA demos)
 │   └── tests/           smoke_test.py — end-to-end integration check
 └── robot_training/ Git submodule — worldsim-template RL toolkit (Newton physics, VLA eval, recording)
 ```
@@ -57,12 +57,17 @@ at a time. It talks to any sim through one seam — the `EnvInterface` Protocol
 
 ### `core/robot_env` (the live MuJoCo sim)
 
-A self-contained MuJoCo scene (`mars_scene.xml`): Mars terrain + a differential-drive
-rover (box chassis, 4 hinged wheels, 4 motor actuators) on a flat drive plane.
-`MarsMujocoBridge` (`hud_mujoco_bridge.py`) is a HUD `RobotBridge` — actions are
-`[forward_speed, turn_speed]`, observations are an RGB frame + an 8-vector state
-`[x, y, z, yaw, vx, vy, vz, yaw_rate]`, and it scores a **drive-to-goal** task (dense
-progress reward + arrival bonus). This is the canonical env for both the demo and RL.
+A self-contained MuJoCo scene (`mars_scene.xml`) with two HUD `RobotBridge` embodiments:
+
+- **Rover** (`hud_mujoco_bridge.py`, `MarsMujocoBridge`) — a differential-drive rover.
+  Action `[forward_speed, turn_speed]`; obs = RGB + 8-vector state
+  `[x, y, z, yaw, vx, vy, vz, yaw_rate]`; scores a **drive-to-goal** task (dense progress
+  reward + arrival bonus). Drives the orchestration demo via `RoverEnvAdapter`.
+- **Arm** (`hud_arm_bridge.py`, `MarsArmPickPlaceBridge`) — a 4-DoF arm + gripper that
+  picks 20 cubes from a pile into a dome. Action `[d_yaw, d_shoulder, d_elbow, d_wrist,
+  gripper]`; obs = RGB + 16-vector state. Ships a **scripted IK oracle**
+  (`_scripted_actions`) that solves the task — the expert used to record VLA demos
+  (see *Recording a VLA dataset* below).
 
 ### `robot_training`
 
@@ -241,6 +246,58 @@ python scripts/check_setup.py        # boots the sim + grades one scripted rollo
 cd core     && make lint && make check   # ruff + pyright (backend + Brain + sim)
 cd frontend && make lint                 # eslint
 ```
+
+---
+
+## Recording a VLA dataset
+
+Each robot ships a scripted oracle (the **expert**); `core/robot_env/record_dataset.py`
+replays it and captures `(image, proprio state, action)` per tick into a **LeRobot v3
+dataset** for fine-tuning a VLA (e.g. pi0.5). Two robots via `--robot`:
+
+| `--robot` | Expert | Task |
+|---|---|---|
+| `arm` (default) | `MarsArmPickPlaceBridge` | pick 20 cubes into a dome |
+| `printer` | `MarsPrinterBridge` | print a structure — `--structure dome\|wall\|tower` |
+
+The recorded `observation.state` is **proprioception only** (joints, EE pose, tool state) —
+the privileged target coordinates are withheld so the policy must use the camera. Those
+coords are still recorded, in a separate **`godmode`** column (deliberately *not* under
+the `observation.*` prefix, so no standard training config feeds it to the policy). Use it
+for debugging, analysis, reward, or a privileged critic.
+
+```bash
+cd core
+
+# 1. Validate the pipeline with NO heavy deps (no torch/lerobot):
+uv run python robot_env/record_dataset.py --robot printer --structure tower --dry-run
+
+# 2. Install the recording stack (heavy — pulls lerobot + torch):
+uv sync --extra record
+
+# 3. Authenticate to Hugging Face:
+huggingface-cli login            # or: export HF_TOKEN=hf_...
+
+# 4. Record + push (add --overwrite when re-running; `create` refuses an existing dir):
+uv run python robot_env/record_dataset.py --robot printer --structure tower \
+    --repo-id <hf-user>/mars-print-tower --push
+```
+
+Result: a dataset at `https://huggingface.co/datasets/<hf-user>/...`, ready for `lerobot`
+to fine-tune pi0.5 on. **HUD/this repo does not train the VLA — `lerobot` does** (offline,
+on a GPU); record here, train in lerobot, eval back through HUD.
+
+The local copy is written to `/tmp/lerobot/<repo-id>` (ephemeral staging — the durable
+copy is the HF Hub after `--push`). Pass `--root <path>` to keep it elsewhere.
+
+**Caveats:**
+- The scene is currently **deterministic** — every episode is identical, so `--episodes 1`
+  is the honest dataset. For real VLA diversity, randomize the scene and make the oracle
+  read live cube poses first.
+- The lerobot dataset API shifts between versions; `record_dataset.py` targets the current
+  `LeRobotDataset.create / add_frame / save_episode / finalize` API with a fallback import.
+  `finalize()` before push is required — without it the episode-metadata parquet never
+  uploads and HF's dataset viewer fails with "Parquet magic bytes not found."
 
 ---
 
