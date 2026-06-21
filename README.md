@@ -1,8 +1,41 @@
-# constructive_feedback
+# ATOMZ
 
 We are building a verifiable multi-agent construction RL environment + a swarm policy trained in it + a demo wrapper.
 
 Users pick a Mars construction blueprint in the web UI, which dispatches an AI agent (via Modal) to run a physics-based build simulation. The simulation runs in the `robot_env` MuJoCo environment, and the live output streams back to the browser.
+
+![alt text](image.png)
+---
+
+## Sponsor Technologies
+
+How each sponsor's tech is used in this project:
+
+- **HUD** — the robot/VLA backbone. Every robot embodiment is a HUD `RobotBridge`, served
+  over HUD's `robot` (openpi/0) capability and graded by HUD `Environment` / `Taskset`. The
+  swarm manipulation RL env (`core/robot_env/swarm_hud_env.py`), the dataset recorder, and
+  the VLA eval runner (`run_swarm_vla.py`) all run on the HUD SDK; `robot_training/` is HUD's
+  worldsim-template, our RL training/eval reference.
+- **Modal** — all serverless compute. The FastAPI orchestration backend (`core/main.py`)
+  runs as a Modal app, and the whole VLA pipeline runs as Modal A100 functions: supervised
+  finetuning (`core/train/sft_modal.py`), the reinforcement-finetuning loop
+  (`core/train/rl_loop.py`), and the policy inference server
+  (`core/robot_env/serve/pi05_modal_mars.py`). See `TRAINING.md`.
+- **MiniMax** — two places. (1) **MiniMax M3** is the LLM coordinator that assigns robots to
+  build tasks (`core/orchestration/coordinator.py`). (2) **MiniMax image-to-video** generates
+  the cinematic Mars build clips in the web UI (`frontend/scripts/generate-mars-video.ts`).
+- **Fireworks** — serves MiniMax M3 via its OpenAI-compatible inference API
+  (`api.fireworks.ai`); the coordinator falls back to a greedy heuristic if the key is absent.
+- **Google DeepMind** — **MuJoCo** is the physics + rendering engine for the entire sim
+  (`robot_env/*.xml`, every bridge), and **Gemma / PaliGemma** is the vision-language backbone
+  inside the pi0.5 VLA we finetune.
+- **Antim Labs** — `robot_training/` is the Antim Labs × HUD *worldsim-template* (Newton
+  physics + Gizmo-generated scenes). Our pi0.5 serve/eval path mirrors its reference
+  implementation (`serve/policy_server.py`, `run_vla.py`).
+- **Anthropic** — this project was developed with **Claude Code** (Claude Opus); the
+  `anthropic` SDK is also available through the HUD SDK for LLM-driven agents.
+
+*Not used in this build:* Daytona, SixtyFour, Exa.
 
 ---
 
@@ -304,6 +337,14 @@ copy is the HF Hub after `--push`). Pass `--root <path>` to keep it elsewhere.
   `LeRobotDataset.create / add_frame / save_episode / finalize` API with a fallback import.
   `finalize()` before push is required — without it the episode-metadata parquet never
   uploads and HF's dataset viewer fails with "Parquet magic bytes not found."
+
+---
+
+## Datasets and Trained Models
+Check TRAINING.md for more details:
+- https://huggingface.co/datasets/changminbark/mars-construction-swarm
+- https://huggingface.co/changminbark/pi05-mars-swarm-sft
+- https://huggingface.co/changminbark/pi05-mars-swarm-rl
 
 ---
 

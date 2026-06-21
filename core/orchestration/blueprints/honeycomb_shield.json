@@ -1,5 +1,5 @@
 {
-  "blueprint_id": "honeycomb-shield",
+  "building_id": "honeycomb-shield",
   "components": [
     {
       "id": "foundation_pad",

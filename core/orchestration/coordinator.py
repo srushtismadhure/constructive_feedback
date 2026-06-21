@@ -62,6 +62,38 @@ def greedy_coordinator(task_graph: TaskGraph, registry: RobotRegistry) -> Assign
 _FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1"
 _MINIMAX_M3 = "accounts/fireworks/models/minimax-m3"
 
+# Fireworks throttles bursty replan loops with HTTP 429. Retry with exponential
+# backoff before the caller falls back to greedy.
+_MAX_LLM_RETRIES = 4
+_LLM_BACKOFF_BASE = 1.5  # seconds: 1.5, 3.0, 6.0, 12.0
+
+
+def _create_with_retry(client, **kwargs):
+    """Call chat.completions.create, retrying only on rate-limit (429)."""
+    import time
+
+    try:
+        from openai import RateLimitError
+    except ImportError:  # pragma: no cover — openai always present in this env
+        RateLimitError = None
+
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_LLM_RETRIES):
+        try:
+            return client.chat.completions.create(**kwargs)
+        except Exception as exc:  # noqa: BLE001 — re-raise non-429 immediately
+            is_429 = (RateLimitError is not None and isinstance(exc, RateLimitError)) or (
+                getattr(exc, "status_code", None) == 429
+            )
+            if not is_429 or attempt == _MAX_LLM_RETRIES - 1:
+                raise
+            last_exc = exc
+            delay = _LLM_BACKOFF_BASE * (2 ** attempt)
+            print(f"[coordinator] 429 rate-limited; retry {attempt + 1}/{_MAX_LLM_RETRIES - 1} in {delay:.1f}s")
+            time.sleep(delay)
+    if last_exc:  # pragma: no cover — loop always returns or raises above
+        raise last_exc
+
 # OpenAI-format tool definition (Fireworks is OpenAI-compatible)
 _ASSIGN_TOOL = {
     "type": "function",
@@ -180,9 +212,12 @@ def llm_coordinator(
 
     try:
         client = OpenAI(base_url=_FIREWORKS_BASE_URL, api_key=key)
-        response = client.chat.completions.create(
+        response = _create_with_retry(
+            client,
             model=_MINIMAX_M3,
-            max_tokens=512,
+            # MiniMax M3 emits reasoning before the tool call; 512 truncated the
+            # arguments JSON mid-string (JSONDecodeError → silent greedy fallback).
+            max_tokens=4096,
             temperature=0,
             tools=[_ASSIGN_TOOL],
             tool_choice={"type": "function", "function": {"name": "assign_robots"}},

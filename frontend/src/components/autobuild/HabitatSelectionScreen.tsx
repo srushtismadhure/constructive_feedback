@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { startSimulation, HABITAT_ID_TO_BACKEND } from "@/lib/api";
 
 type HabitatId = "regolith-shielded-dome" | "vertical-ellipsoid-pressure";
 
@@ -198,7 +199,23 @@ function HabitatBlueprint({ habitat }: { habitat: HabitatSystem }) {
 export default function HabitatSelectionScreen() {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<HabitatId>(HABITATS[0].id);
+  const [launching, setLaunching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"llm" | "greedy">("llm");
   const selected = HABITATS.find((habitat) => habitat.id === selectedId) ?? HABITATS[0];
+
+  async function launch() {
+    setError(null);
+    setLaunching(true);
+    try {
+      const backendType = HABITAT_ID_TO_BACKEND[selectedId];
+      const res = await startSimulation(backendType, mode);
+      router.push(`/live-construction?sim=${res.simulation_id}&habitat=${selectedId}&mode=${mode}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start simulation");
+      setLaunching(false);
+    }
+  }
 
   return (
     <main className="habitat-selection-shell min-h-screen">
@@ -272,10 +289,48 @@ export default function HabitatSelectionScreen() {
               <span key={metric.label}>{metric.label}: {metric.value}</span>
             ))}
           </div>
-          <button type="button" onClick={() => router.push("/live-construction")}>
-            Continue with {selected.name}
+          <div
+            role="radiogroup"
+            aria-label="Coordinator mode"
+            style={{ display: "flex", gap: "0.4rem", marginBottom: "0.75rem" }}
+          >
+            {(["llm", "greedy"] as const).map((m) => {
+              const active = mode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setMode(m)}
+                  title={m === "llm" ? "pi0.5 VLA" : "Nearest-idle-robot heuristic, no LLM"}
+                  style={{
+                    flex: 1,
+                    padding: "0.4rem 0.6rem",
+                    fontSize: "0.62rem",
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
+                    borderRadius: 6,
+                    border: active ? "1px solid rgba(255,140,60,0.7)" : "1px solid rgba(120,130,150,0.3)",
+                    background: active ? "rgba(255,120,40,0.15)" : "transparent",
+                    color: active ? "rgba(255,200,160,0.95)" : "rgba(180,190,205,0.6)",
+                  }}
+                >
+                  {m === "llm" ? "LLM · MiniMax M3" : "Greedy"}
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" onClick={launch} disabled={launching}>
+            {launching ? "Dispatching to orchestrator…" : `Continue with ${selected.name}`}
             <span aria-hidden="true">→</span>
           </button>
+          {error && (
+            <p role="alert" style={{ color: "#ff6b6b", fontSize: "0.75rem", marginTop: "0.5rem" }}>
+              {error}
+            </p>
+          )}
         </aside>
       </div>
     </main>

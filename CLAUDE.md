@@ -195,6 +195,18 @@ FRONTEND_ORIGIN=http://localhost:3000
 python3 -m modal secret create fireworks-api-key FIREWORKS_API_KEY=fw_...
 ```
 
+### Live-feed GPU rendering — NVIDIA EGL ICD (do not remove)
+The `gpu="T4"` worker renders MuJoCo via EGL. `debian_slim` ships the NVIDIA
+driver `.so` at runtime but registers **only Mesa's** EGL vendor
+(`50_mesa.json`) → libglvnd silently picks **software** rendering (~210 ms/frame,
+~3 FPS; render time is resolution-independent, the tell). The image writes an
+NVIDIA ICD (`10_nvidia.json` → `libEGL_nvidia.so.0`) via `run_commands` so it
+sorts before Mesa and MuJoCo renders on the T4 (~16 ms/frame, ~12 FPS
+end-to-end). Profiled split at the time: step 14 / render 16 / encode 2 /
+dict_put 22 ms — the Modal Dict write is now the largest single cost. The blueprints
+dir is also `add_local_dir`-copied to `/root/orchestration/blueprints` because
+`add_local_python_source` ships `.py` only (the Brain needs the JSON at runtime).
+
 ---
 
 ## Robot Fleet (default)
@@ -205,7 +217,15 @@ Robot(id="hauler-1",    role="hauler",    capabilities=["haul", "pickup"], posit
 Robot(id="hauler-2",    role="hauler",    capabilities=["haul", "pickup"], position=(5, 5))
 Robot(id="welder-1",    role="welder",    capabilities=["weld", "place"], position=(3, 1))
 Robot(id="welder-2",    role="welder",    capabilities=["weld", "place"], position=(4, 6))
+Robot(id="printer-1",   role="3d_printer", capabilities=["extrude"], position=(3, 4))
+Robot(id="printer-2",   role="3d_printer", capabilities=["extrude"], position=(4, 3))
+Robot(id="arm-1",       role="arm_robot",  capabilities=["place"],   position=(2, 5))
+Robot(id="arm-2",       role="arm_robot",  capabilities=["place"],   position=(5, 2))
 ```
+**Note**: `extrude`/`place` blueprints (vertical-egg, hybrid-igloo) REQUIRE the
+3d_printer + arm_robot robots — without them the coordinator can't assign those
+tasks and the graph replans forever until the recursion limit. Keep the full
+10-robot fleet so every bundled blueprint completes.
 
 ---
 

@@ -11,10 +11,12 @@ Run from repo root:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import uuid
 from pathlib import Path
+from typing import Literal
 
 # main.py sits in core/ next to orchestration/ and robot_env/. Under `modal serve`
 # (run with -m) the repo root is on the path, not core/, so add this file's own dir
@@ -37,6 +39,16 @@ from pydantic import BaseModel
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
+    .apt_install("libegl1", "libgl1", "libgles2", "libglfw3", "libglvnd0")
+    # The GPU image ships libEGL_nvidia.so but registers only Mesa's EGL vendor
+    # (50_mesa.json) → libglvnd picks software rendering (~210ms/frame on CPU).
+    # Register the NVIDIA EGL ICD (sorts before Mesa) so MuJoCo renders on the T4.
+    # The driver .so is injected by Modal at runtime; this json only names it.
+    .run_commands(
+        "mkdir -p /usr/share/glvnd/egl_vendor.d",
+        "printf '%s' '{\"file_format_version\":\"1.0.0\",\"ICD\":{\"library_path\":\"libEGL_nvidia.so.0\"}}'"
+        " > /usr/share/glvnd/egl_vendor.d/10_nvidia.json",
+    )
     .pip_install(
         "fastapi>=0.115.0",
         "pydantic>=2.0.0",
@@ -46,7 +58,19 @@ image = (
         "langgraph>=0.2.0",
         "openai>=1.30.0",
         "numpy>=1.26.0",
+        "mujoco>=3.2.0",
+        "Pillow>=10.0.0",
     )
+    .add_local_dir(str(Path(__file__).resolve().parent / "robot_env"), remote_path="/root/robot_env", copy=True)
+    # add_local_python_source ships orchestration's .py only — the JSON blueprints
+    # are data files and get dropped, so blueprint_parser can't find them at
+    # /root/orchestration/blueprints. Copy them in explicitly.
+    .add_local_dir(
+        str(Path(__file__).resolve().parent / "orchestration" / "blueprints"),
+        remote_path="/root/orchestration/blueprints",
+        copy=True,
+    )
+    # Non-copied sources must be the final image operation in current Modal.
     .add_local_python_source("orchestration")
 )
 
@@ -54,6 +78,98 @@ app = modal.App("mars-construction", image=image)
 
 # Partitioned by simulation_id so each run has its own event lane.
 events_queue = modal.Queue.from_name("construction-events", create_if_missing=True)
+# The API and worker may run in different containers; keep only compact status
+# metadata and the latest JPEG in Modal's shared dictionary.
+live_sessions = modal.Dict.from_name("atomz-live-sessions", create_if_missing=True)
+
+HABITAT_TYPES = frozenset(("regolith_dome", "ellipsoid_habitat"))
+HabitatType = Literal["regolith_dome", "ellipsoid_habitat"]
+
+# Each live habitat run is paired with an orchestration Brain run under the same
+# simulation_id: the habitat picks the MuJoCo scene + JPEG feed, the blueprint
+# drives the LangGraph plan/assign/dispatch log streamed alongside it.
+HABITAT_BLUEPRINT: dict[str, str] = {
+    "regolith_dome": "habitat-dome",
+    "ellipsoid_habitat": "vertical-egg",
+}
+
+
+def _live_status_key(simulation_id: str) -> str:
+    return f"status:{simulation_id}"
+
+
+def _live_frame_key(simulation_id: str) -> str:
+    return f"frame:{simulation_id}"
+
+
+def _put_live_status(simulation_id: str, **values: object) -> None:
+    key = _live_status_key(simulation_id)
+    previous = live_sessions.get(key, {})
+    live_sessions.put(key, {**previous, **values, "updated_at": time.time()})
+
+
+async def _put_live_status_async(simulation_id: str, **values: object) -> None:
+    """Async variant for FastAPI request handlers."""
+    key = _live_status_key(simulation_id)
+    previous = await live_sessions.get.aio(key, {})
+    await live_sessions.put.aio(key, {**previous, **values, "updated_at": time.time()})
+
+
+@app.function(image=image, gpu="T4", timeout=900, max_containers=4)
+def run_live_habitat(simulation_id: str, habitat_type: HabitatType) -> dict:
+    """Own one isolated headless MuJoCo construction session on a GPU worker."""
+    os.environ.setdefault("MUJOCO_GL", "egl")
+    sys.path.insert(0, "/root/robot_env")
+    from io import BytesIO
+    from PIL import Image
+    import live_runner
+    from live_runner import create_runner
+
+    # 960×540 is cheap now that rendering runs on the T4 (NVIDIA EGL ICD registered
+    # in the image; was ~210ms/frame in Mesa software, ~16ms on GPU).
+    live_runner.BaseRunner.width = 960
+    live_runner.BaseRunner.height = 540
+
+    # Per-frame budget (GPU): step ~14ms + render ~16ms + encode ~2ms + Dict put
+    # ~22ms ≈ 54ms → the Dict write is now the largest single cost. Publish a frame
+    # every tick; touch the status Dict only periodically. No artificial sleep —
+    # the render+encode+put work paces the loop to ~15-18 FPS on its own.
+    _STATUS_EVERY = 15  # frames between status/cancel Dict ops (~1/sec)
+
+    runner = None
+    try:
+        _put_live_status(simulation_id, state="running", progress=0, habitat_type=habitat_type, error=None)
+        runner = create_runner(habitat_type)
+        frame_no = 0
+        last_progress = -1
+        while True:
+            status = runner.step()
+            frame = runner.render()
+            output = BytesIO()
+            Image.fromarray(frame).save(output, format="JPEG", quality=72)
+            live_sessions.put(_live_frame_key(simulation_id), output.getvalue())
+
+            frame_no += 1
+            # Only hit the status Dict on a cadence, on a progress change, or at end.
+            if status.complete or frame_no % _STATUS_EVERY == 0 or status.progress != last_progress:
+                if live_sessions.get(_live_status_key(simulation_id), {}).get("cancel_requested"):
+                    _put_live_status(simulation_id, state="cancelled", progress=status.progress)
+                    break
+                _put_live_status(
+                    simulation_id,
+                    state="complete" if status.complete else "running",
+                    progress=status.progress,
+                )
+                last_progress = status.progress
+            if status.complete:
+                break
+    except Exception as exc:
+        print(f"[live simulation] {type(exc).__name__}: {exc}")
+        _put_live_status(simulation_id, state="error", error=f"{type(exc).__name__}: {exc}")
+    finally:
+        if runner is not None:
+            runner.close()
+    return live_sessions.get(_live_status_key(simulation_id), {})
 
 # ---------------------------------------------------------------------------
 # Orchestration agent — runs on Modal, streams events to the queue
@@ -83,6 +199,11 @@ def run_construction_agent(
             Robot(id="hauler-2",    role="hauler",    capabilities=["haul", "pickup"], position=(5, 5)),
             Robot(id="welder-1",    role="welder",    capabilities=["weld", "place"], position=(3, 1)),
             Robot(id="welder-2",    role="welder",    capabilities=["weld", "place"], position=(4, 6)),
+            # 3D-printer / arm-robot fleet for extrude/place blueprints (vertical-egg, hybrid-igloo).
+            Robot(id="printer-1",   role="3d_printer", capabilities=["extrude"],       position=(3, 4)),
+            Robot(id="printer-2",   role="3d_printer", capabilities=["extrude"],       position=(4, 3)),
+            Robot(id="arm-1",       role="arm_robot",  capabilities=["place"],         position=(2, 5)),
+            Robot(id="arm-2",       role="arm_robot",  capabilities=["place"],         position=(5, 2)),
         ]
     )
 
@@ -195,16 +316,24 @@ web_app.add_middleware(
 
 
 class StartSimulationRequest(BaseModel):
-    blueprint_id: str
+    # habitat_type selects the Atomz live MuJoCo workflow.  blueprint_id is
+    # retained for the existing orchestration workflow.
+    habitat_type: HabitatType | None = None
+    blueprint_id: str | None = None
     coordinator_mode: str = "llm"
     seed: int = 42
 
 
 class StartSimulationResponse(BaseModel):
     simulation_id: str
-    blueprint_id: str
+    blueprint_id: str | None = None
+    habitat_type: HabitatType | None = None
     status: str
     message: str
+    status_url: str | None = None
+    frame_url: str | None = None
+    stream_url: str | None = None
+    cancel_url: str | None = None
 
 
 class SimulationStatusResponse(BaseModel):
@@ -212,6 +341,9 @@ class SimulationStatusResponse(BaseModel):
     status: str
     completion_pct: int | None = None
     steps: int | None = None
+    habitat_type: HabitatType | None = None
+    progress: int | None = None
+    error: str | None = None
 
 
 _simulations: dict[str, dict] = {}
@@ -225,6 +357,57 @@ async def health() -> dict:
 @web_app.post("/simulation/start", response_model=StartSimulationResponse)
 async def start_simulation(req: StartSimulationRequest) -> StartSimulationResponse:
     simulation_id = str(uuid.uuid4())
+    if req.habitat_type:
+        # Pydantic already validates the literal; this guard makes the contract
+        # explicit for callers that reach the handler through tests/mocks.
+        if req.habitat_type not in HABITAT_TYPES:
+            raise HTTPException(status_code=422, detail="Unsupported habitat type")
+        await _put_live_status_async(
+            simulation_id,
+            state="starting",
+            progress=0,
+            habitat_type=req.habitat_type,
+            cancel_requested=False,
+            error=None,
+        )
+        try:
+            await run_live_habitat.spawn.aio(simulation_id=simulation_id, habitat_type=req.habitat_type)
+        except Exception as exc:
+            await _put_live_status_async(simulation_id, state="error", error=f"Unable to start worker: {exc}")
+
+        # Pair the orchestration Brain to the same simulation_id so the frontend
+        # streams the plan/assign/dispatch log (SSE) alongside the JPEG video.
+        blueprint_id = HABITAT_BLUEPRINT.get(req.habitat_type, "habitat-dome")
+        try:
+            fc = run_construction_agent.spawn(
+                blueprint_id=blueprint_id,
+                simulation_id=simulation_id,
+                coordinator_mode=req.coordinator_mode,
+                seed=req.seed,
+            )
+            _simulations[simulation_id] = {
+                "blueprint_id": blueprint_id,
+                "status": "running",
+                "function_call": fc,
+            }
+        except Exception as exc:
+            print(f"[api] brain spawn failed: {exc}")
+
+        base = f"/simulation/{simulation_id}"
+        return StartSimulationResponse(
+            simulation_id=simulation_id,
+            blueprint_id=blueprint_id,
+            habitat_type=req.habitat_type,
+            status="starting",
+            message="Live habitat worker + orchestration Brain starting.",
+            status_url=base,
+            frame_url=f"{base}/frames",
+            stream_url=f"{base}/stream",
+            cancel_url=f"{base}/cancel",
+        )
+
+    if not req.blueprint_id:
+        raise HTTPException(status_code=422, detail="Provide habitat_type or blueprint_id")
     try:
         fc = run_construction_agent.spawn(
             blueprint_id=req.blueprint_id,
@@ -271,6 +454,15 @@ async def stream_simulation(simulation_id: str):
 
 @web_app.get("/simulation/{simulation_id}", response_model=SimulationStatusResponse)
 async def get_simulation_status(simulation_id: str) -> SimulationStatusResponse:
+    live = await live_sessions.get.aio(_live_status_key(simulation_id))
+    if live:
+        return SimulationStatusResponse(
+            simulation_id=simulation_id,
+            status=live.get("state", "starting"),
+            habitat_type=live.get("habitat_type"),
+            progress=live.get("progress", 0),
+            error=live.get("error"),
+        )
     sim = _simulations.get(simulation_id)
     if not sim:
         raise HTTPException(status_code=404, detail="Simulation not found")
@@ -291,6 +483,45 @@ async def get_simulation_status(simulation_id: str) -> SimulationStatusResponse:
         completion_pct=sim.get("completion_pct"),
         steps=sim.get("steps"),
     )
+
+
+@web_app.get("/simulation/{simulation_id}/frames")
+async def stream_live_frames(simulation_id: str):
+    """Multipart JPEG feed. The last frame remains available after completion."""
+    if not await live_sessions.get.aio(_live_status_key(simulation_id)):
+        raise HTTPException(status_code=404, detail="Simulation not found")
+
+    import asyncio
+
+    async def frame_generator():
+        last_frame: bytes | None = None
+        poll = 0
+        while True:
+            frame = await live_sessions.get.aio(_live_frame_key(simulation_id))
+            if frame and frame != last_frame:
+                last_frame = frame
+                yield b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n"
+            # Checking end-state is a second Dict read; do it ~3x/sec, not every poll.
+            poll += 1
+            if poll % 8 == 0:
+                state = (await live_sessions.get.aio(_live_status_key(simulation_id), {})).get("state")
+                if state in {"complete", "cancelled", "error"}:
+                    # Emit the final frame once, then let browsers retain it.
+                    break
+            await asyncio.sleep(0.04)
+
+    return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@web_app.post("/simulation/{simulation_id}/cancel")
+async def cancel_live_simulation(simulation_id: str) -> dict:
+    status = await live_sessions.get.aio(_live_status_key(simulation_id))
+    if not status:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    if status.get("state") not in {"complete", "cancelled", "error"}:
+        await _put_live_status_async(simulation_id, cancel_requested=True)
+    latest = await live_sessions.get.aio(_live_status_key(simulation_id), {})
+    return {"simulation_id": simulation_id, "status": latest.get("state")}
 
 
 @web_app.get("/blueprints")
