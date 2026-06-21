@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Atomz geometric logo</title>
+  <desc id="desc">Three glowing orange geometric panels forming a stylized letter A.</desc>
+  <defs>
+    <linearGradient id="topGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff7a00"/>
+      <stop offset="0.55" stop-color="#ff5a00"/>
+      <stop offset="1" stop-color="#ff8a00"/>
+    </linearGradient>
+    <linearGradient id="leftGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff6a00"/>
+      <stop offset="0.65" stop-color="#f24600"/>
+      <stop offset="1" stop-color="#c72f00"/>
+    </linearGradient>
+    <linearGradient id="rightGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff6a00"/>
+      <stop offset="0.7" stop-color="#ff4b00"/>
+      <stop offset="1" stop-color="#ff7a00"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#glow)" stroke="#ff8a00" stroke-width="1.6" stroke-linejoin="miter">
+    <polygon points="480,150 650,300 650,510 480,365" fill="url(#topGrad)"/>
+    <polygon points="310,500 480,365 480,610 310,750" fill="url(#leftGrad)"/>
+    <polygon points="650,510 770,620 770,750 650,750" fill="url(#rightGrad)"/>
+  </g>
+</svg>
