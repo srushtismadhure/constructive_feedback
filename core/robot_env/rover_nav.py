@@ -41,14 +41,12 @@ import mujoco
 import numpy as np
 
 # Tuning constants for the pure-pursuit-ish differential drive controller.
-MAX_FORWARD = 1.0     # forward command (consumed by both wheels)
-MAX_TURN = 1.0        # differential turn command — full opposing torque for snappy pivot
-HEADING_TOL = 0.10    # rad — once within this, drive straight
-PIVOT_TURN_GAIN = 1.5
-FORWARD_GAIN = 1.5
-WHEEL_TORQUE_CAP = 5.0  # matches swarm ctrlrange; mobile-rover scene still has 2.5 but
-                        # uses its own controller instance, so the higher cap only kicks
-                        # in when the swarm scene is loaded.
+MAX_FORWARD = 1.0     # normalized forward command (consumed by both wheels)
+MAX_TURN = 1.0        # normalized differential turn command
+HEADING_TOL = 0.14    # rad — start moving sooner instead of over-pivoting
+PIVOT_TURN_GAIN = 2.0
+FORWARD_GAIN = 2.5
+WHEEL_TORQUE_CAP = 10.0  # swarm XML permits this higher cap for responsive travel
 
 
 def _quat_to_yaw(quat: np.ndarray) -> float:
