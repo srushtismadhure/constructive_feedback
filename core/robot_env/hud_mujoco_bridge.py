@@ -27,6 +27,11 @@ PHYSICS_STEPS_PER_ACTION = 20
 CAMERA_HEIGHT = 256
 CAMERA_WIDTH = 256
 
+# Drive-to-goal task: dense progress reward + a bonus when the rover arrives.
+GOAL_TOLERANCE = 0.4          # metres; within this counts as "reached"
+DEFAULT_GOAL = (0.0, 1.5)     # standalone HUD/demo goal when none is supplied
+SUCCESS_BONUS = 1.0           # one-off reward added on arrival
+
 CONTRACT = {
     "robot_type": "mars_wheel_rover_mujoco",
     "control_rate": 10,
@@ -95,8 +100,12 @@ class MarsMujocoBridge(RobotBridge):
         self.total_reward = 0.0
         self.steps = 0
         self.max_steps = 500
+        # Drive-to-goal task state.
+        self.goal_xy: tuple[float, float] = DEFAULT_GOAL
+        self.goal_tol = GOAL_TOLERANCE
+        self.prev_dist = 0.0
 
-    async def reset(self, task_id: str, seed: int = 0) -> str:
+    async def reset(self, task_id: str, seed: int = 0, goal_xy: tuple[float, float] | None = None) -> str:
         del task_id
         np.random.seed(seed)
 
@@ -137,7 +146,13 @@ class MarsMujocoBridge(RobotBridge):
         self.data.qvel[:] = 0.0
         self.data.ctrl[:] = 0.0
         mujoco.mj_forward(self.model, self.data)
-        return "Drive the Mars rover using actions [forward_speed, turn_speed]."
+
+        self.goal_xy = goal_xy if goal_xy is not None else DEFAULT_GOAL
+        self.prev_dist = self._dist_to_goal()
+        return (
+            f"Drive the Mars rover to ({self.goal_xy[0]:.2f}, {self.goal_xy[1]:.2f}) "
+            f"using actions [forward_speed, turn_speed]."
+        )
 
     def step(self, action) -> None:
         self._require_ready()
@@ -164,7 +179,17 @@ class MarsMujocoBridge(RobotBridge):
             mujoco.mj_step(self.model, self.data)
 
         self.steps += 1
-        self.total_reward += 0.0
+
+        # Dense progress reward: how much closer to the goal this action got us.
+        dist = self._dist_to_goal()
+        reward = self.prev_dist - dist
+        self.prev_dist = dist
+        if dist <= self.goal_tol and not self.success:
+            reward += SUCCESS_BONUS
+            self.success = True
+            self.terminated = True
+        self.total_reward += reward
+
         if self.steps >= self.max_steps:
             self.terminated = True
 
@@ -207,6 +232,22 @@ class MarsMujocoBridge(RobotBridge):
         pos = self.data.qpos[self.robot_qposadr : self.robot_qposadr + 3]
         quat = self.data.qpos[self.robot_qposadr + 3 : self.robot_qposadr + 7]
         return float(pos[0]), float(pos[1]), float(pos[2]), quat_to_yaw(quat)
+
+    def set_goal(self, x: float, y: float) -> None:
+        """Point the drive-to-goal task at a new (x, y) without re-loading the scene.
+
+        Clears the per-goal success/terminated flags and re-baselines the progress
+        distance, so one bridge can serve many sequential goals (e.g. one per
+        orchestration task). Cumulative ``total_reward`` and ``steps`` are left intact.
+        """
+        self.goal_xy = (float(x), float(y))
+        self.success = False
+        self.terminated = False
+        self.prev_dist = self._dist_to_goal()
+
+    def _dist_to_goal(self) -> float:
+        x, y, _, _ = self._robot_pose()
+        return math.hypot(x - self.goal_xy[0], y - self.goal_xy[1])
 
     def _robot_state(self) -> tuple[float, float, float, float, float, float, float, float]:
         assert self.data is not None

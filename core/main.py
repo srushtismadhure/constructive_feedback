@@ -4,16 +4,23 @@ Everything lives here so Modal mounts one file and finds all app/function
 definitions. modal_config.py and agent.py are NOT needed in the container.
 
 Run from repo root:
-    python3 -m modal serve web/backend/main.py      # dev
-    python3 -m modal deploy web/backend/main.py     # prod
+    python3 -m modal serve core/main.py      # dev
+    python3 -m modal deploy core/main.py     # prod
 """
 
 from __future__ import annotations
 
 import json
+import sys
 import time
 import uuid
 from pathlib import Path
+
+# main.py sits in core/ next to orchestration/ and robot_env/. Under `modal serve`
+# (run with -m) the repo root is on the path, not core/, so add this file's own dir
+# — that makes `add_local_python_source("orchestration")` and the function imports
+# below resolve.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")

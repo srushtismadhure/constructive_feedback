@@ -16,7 +16,7 @@ def main() -> None:
 
     if not args.autopilot:
         print("Nothing is animated in the passive scene. Use --autopilot to drive HUD actions.")
-        print("Example: mjpython robot_env/simulate_rover.py --autopilot")
+        print("Example: mjpython core/robot_env/simulate_rover.py --autopilot")
         return
 
     asyncio.run(run_demo(args.rate_hz))
