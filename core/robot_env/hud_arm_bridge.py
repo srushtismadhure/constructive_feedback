@@ -39,9 +39,9 @@ PILE_BASE_Z = 3.39
 DOME_CENTER = (1.671, -0.146, 3.39)
 DOME_TIERS = [
     # (count, radius, z, angle_offset_rad)
-    (16, 0.25, 3.39, 0.0),
-    (12, 0.18, 3.50, math.pi / 12),  # half-step offset so the ring lands between tier-0 cubes
-    (8, 0.10, 3.61, 0.0),
+    (16, 0.50, 3.39, 0.0),
+    (12, 0.36, 3.50, math.pi / 12),  # half-step offset so the ring lands between tier-0 cubes
+    (8, 0.20, 3.61, 0.0),
 ]
 
 # The arm's yaw_body sits at this world position (rover at 1.25,-0.5,3.55, +0.09 chassis-top,
@@ -505,6 +505,7 @@ def _move_to_pose_actions(
     goal: np.ndarray,
     steps: int,
     gripper: float,
+    delta_scale: np.ndarray = DELTA_SCALE,
 ) -> tuple[list[np.ndarray], np.ndarray]:
     actions: list[np.ndarray] = []
     current = start.astype(np.float32).copy()
@@ -512,18 +513,24 @@ def _move_to_pose_actions(
         remaining = goal.astype(np.float32) - current
         delta = remaining / max(1, steps - len(actions))
         action = np.zeros(5, dtype=np.float32)
-        action[:4] = np.clip(delta / DELTA_SCALE, -1.0, 1.0)
+        action[:4] = np.clip(delta / delta_scale, -1.0, 1.0)
         action[4] = gripper
-        current += action[:4] * DELTA_SCALE
+        current += action[:4] * delta_scale
         actions.append(action)
     return actions, current
 
 
-def _move_to(current: np.ndarray, goal: np.ndarray, gripper: float, pad: int = 2):
+def _move_to(
+    current: np.ndarray,
+    goal: np.ndarray,
+    gripper: float,
+    pad: int = 2,
+    delta_scale: np.ndarray = DELTA_SCALE,
+):
     """Wrap _move_to_pose_actions, sizing the move so DELTA_SCALE clipping never starves it."""
-    diff = np.abs(goal[:4] - current[:4]) / DELTA_SCALE
+    diff = np.abs(goal[:4] - current[:4]) / delta_scale
     steps = max(3, int(math.ceil(float(np.max(diff)))) + pad)
-    return _move_to_pose_actions(current, goal, steps, gripper)
+    return _move_to_pose_actions(current, goal, steps, gripper, delta_scale=delta_scale)
 
 
 def _scripted_actions() -> list[np.ndarray]:

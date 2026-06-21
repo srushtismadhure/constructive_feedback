@@ -1,6 +1,6 @@
 """Three-rover swarm dome-build demo.
 
-Each rover starts at its dome staging position (radius 0.65 around the origin,
+Each rover starts at its dome staging position (radius 1.0 around the origin,
 at 270/150/30 deg), shares one pile at (0, 5), and builds its 120-degree
 wedge of the 3-tier dome at the origin. Pile access is serialized by a
 software ``pile_lock`` held by the bridge; everything else (driving to dome,
@@ -37,6 +37,7 @@ from swarm_bridge import (
     PILE_RADIUS,
     PILE_STAGING_RADIUS,
     ROVER_PREFIXES,
+    SWARM_ARM_DELTA_SCALE,
     MarsSwarmBridge,
     _pile_center_for,
 )
@@ -52,9 +53,15 @@ def _pile_staging_for(rover_idx: int) -> tuple[float, float]:
     return _staging_at(PILE_STAGING_RADIUS, angles_deg[rover_idx])
 
 
-def _dome_staging_for(rover_idx: int) -> tuple[float, float]:
-    angles_deg = [270.0, 150.0, 30.0]
-    return _staging_at(DOME_STAGING_RADIUS, angles_deg[rover_idx])
+def _dome_staging_for_target(target_xyz: np.ndarray) -> tuple[float, float]:
+    """Choose a staging point outside the dome on the target's radial line.
+
+    A fixed sector-centre staging point made the slots at either edge of a
+    120-degree sector exceed arm reach once the dome radius increased.
+    """
+    angle = math.atan2(float(target_xyz[1] - DOME_CENTER[1]),
+                       float(target_xyz[0] - DOME_CENTER[0]))
+    return _staging_at(DOME_STAGING_RADIUS, math.degrees(angle))
 DRIVE_TOL = 0.18
 STAGING_TOL = 0.07  # tighter for the final approach so IK has a stable origin
 APPROACH_DZ = 0.28
@@ -88,7 +95,6 @@ class RoverAgent:
         # staging is the closer-to-origin spot at radius DOME_STAGING_RADIUS along
         # the same angle.
         self.pile_staging = _pile_staging_for(idx)
-        self.dome_staging = _dome_staging_for(idx)
         self.action_queue: list[np.ndarray] = []
         self.action_idx: int = 0
         self.current_dome_target_idx: int | None = None
@@ -139,13 +145,20 @@ class RoverAgent:
             # fall through
 
         if self.state == State.DRIVING_TO_DOME:
-            if self.nav.at_goal(self.dome_staging, tol=STAGING_TOL):
+            cube_idx = self.unit.held_cube_idx
+            if cube_idx is None:
+                raise RuntimeError(f"rover {self.idx}: driving to dome without a cube")
+            target_idx = self.bridge.held_cube_target.get(cube_idx)
+            if target_idx is None:
+                raise RuntimeError(f"rover {self.idx}: held cube has no assigned dome target")
+            dome_staging = _dome_staging_for_target(self.bridge.dome_targets[target_idx])
+            if self.nav.at_goal(dome_staging, tol=STAGING_TOL):
                 self.nav.stop()
                 self.action_queue = self._build_place_actions()
                 self.action_idx = 0
                 self.state = State.PLACING
                 return STOW_CLOSED
-            self.nav.step_drive(self.dome_staging)
+            self.nav.step_drive(dome_staging)
             return STOW_CLOSED
 
         if self.state == State.PLACING:
@@ -179,12 +192,12 @@ class RoverAgent:
             )
         current = self.unit.targets.copy()
         actions: list[np.ndarray] = []
-        move, current = _move_to(current, high, 1.0)
+        move, current = _move_to(current, high, 1.0, delta_scale=SWARM_ARM_DELTA_SCALE)
         actions += move
-        move, current = _move_to(current, low, 1.0)
+        move, current = _move_to(current, low, 1.0, delta_scale=SWARM_ARM_DELTA_SCALE)
         actions += move
-        actions += _repeat([0.0, 0.0, 0.0, 0.0, -1.0], 5)  # close gripper
-        move, current = _move_to(current, high, -1.0)
+        actions += _repeat([0.0, 0.0, 0.0, 0.0, -1.0], 3)  # close gripper
+        move, current = _move_to(current, high, -1.0, delta_scale=SWARM_ARM_DELTA_SCALE)
         actions += move
         return actions
 
@@ -209,12 +222,12 @@ class RoverAgent:
             )
         current = self.unit.targets.copy()
         actions: list[np.ndarray] = []
-        move, current = _move_to(current, high, -1.0)
+        move, current = _move_to(current, high, -1.0, delta_scale=SWARM_ARM_DELTA_SCALE)
         actions += move
-        move, current = _move_to(current, low, -1.0)
+        move, current = _move_to(current, low, -1.0, delta_scale=SWARM_ARM_DELTA_SCALE)
         actions += move
-        actions += _repeat([0.0, 0.0, 0.0, 0.0, 1.0], 5)  # open gripper
-        move, current = _move_to(current, high, 1.0)
+        actions += _repeat([0.0, 0.0, 0.0, 0.0, 1.0], 3)  # open gripper
+        move, current = _move_to(current, high, 1.0, delta_scale=SWARM_ARM_DELTA_SCALE)
         actions += move
         return actions
 

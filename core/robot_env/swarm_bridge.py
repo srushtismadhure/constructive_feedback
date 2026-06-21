@@ -59,9 +59,18 @@ SCENE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOME_CENTER = (0.0, 0.0, 3.39)
 NUM_ROVERS = 3
 PILE_RADIUS = 3.5
-DOME_STAGING_RADIUS = 0.65
-PILE_STAGING_RADIUS = PILE_RADIUS - 0.45  # 3.05; rovers spawn here next to their pile
+# The outer dome tier has a 0.50 m radius. Keep rover chassis outside that
+# ring while retaining enough arm reach for the innermost tier.
+DOME_STAGING_RADIUS = 1.00
+# Keep rover centres outside the pile by more than the chassis half-length
+# (0.36 m) plus a margin. The arm reaches into the remaining gap.
+PILE_SAFETY_CLEARANCE = 0.70
+PILE_STAGING_RADIUS = PILE_RADIUS - PILE_SAFETY_CLEARANCE
 CUBES_PER_PILE = 12  # each rover owns a 2x2x3 = 12 cube pile
+# Swarm choreography uses the same IK poses as the single rover but can safely
+# take larger position increments because the bridge pins scripted cubes.
+SWARM_ARM_DELTA_SCALE = DELTA_SCALE * 1.8
+SWARM_GRIPPER_STEP = 0.35
 
 # Per-rover pile centers (must match gen_swarm_xml.py): radius 2.0 at 270/150/30 deg.
 def _pile_center_for(rover_idx: int) -> tuple[float, float]:
@@ -206,9 +215,11 @@ class RoverUnit:
         """Consume one 5D action [d_yaw, d_shoulder, d_elbow, d_wrist, gripper]
         and write this rover's arm + gripper ctrl. Does not touch wheel ctrl."""
         action = np.asarray(action, dtype=np.float32).reshape(-1)
-        deltas = np.clip(action[:4], -1.0, 1.0) * DELTA_SCALE
+        deltas = np.clip(action[:4], -1.0, 1.0) * SWARM_ARM_DELTA_SCALE
         self.targets = np.clip(self.targets + deltas, self._arm_low(), self._arm_high())
-        self.gripper = float(np.clip(self.gripper + 0.2 * float(action[4]), 0.0, 1.0))
+        self.gripper = float(np.clip(
+            self.gripper + SWARM_GRIPPER_STEP * float(action[4]), 0.0, 1.0
+        ))
 
         for aid, target in zip(self.arm_actuator_ids, self.targets):
             self.data.ctrl[aid] = float(target)

@@ -47,6 +47,10 @@ HEADING_TOL = 0.14    # rad — start moving sooner instead of over-pivoting
 PIVOT_TURN_GAIN = 2.0
 FORWARD_GAIN = 2.5
 WHEEL_TORQUE_CAP = 10.0  # swarm XML permits this higher cap for responsive travel
+BRAKE_DISTANCE = 0.95    # metres; retain cruise speed until the final approach
+MIN_APPROACH_SPEED = 0.12
+APPROACH_SPEED_GAIN = 1.40  # target closing speed in m/s per metre remaining
+BRAKE_GAIN = 3.5
 
 
 def _quat_to_yaw(quat: np.ndarray) -> float:
@@ -70,6 +74,7 @@ class RoverDriveController:
         self.prefix = prefix
         joint_id = model.joint(f"{prefix}rover_free").id
         self.qposadr = int(model.jnt_qposadr[joint_id])
+        self.qveladr = int(model.jnt_dofadr[joint_id])
         self.wheel_actuator_ids = [
             int(model.actuator(n).id)
             for n in (
@@ -111,7 +116,25 @@ class RoverDriveController:
             turn = MAX_TURN if heading_err > 0 else -MAX_TURN
         else:
             dist = math.hypot(dx, dy)
-            forward = float(np.clip(FORWARD_GAIN * dist, -MAX_FORWARD, MAX_FORWARD))
+            goal_x, goal_y = dx / dist, dy / dist
+            vx, vy = self.data.qvel[self.qveladr:self.qveladr + 2]
+            closing_speed = float(vx * goal_x + vy * goal_y)
+            desired_speed = APPROACH_SPEED_GAIN * dist
+
+            # A free-jointed rover carries appreciable momentum at the higher
+            # swarm torque cap. If it is closing faster than the remaining
+            # distance allows, reverse the wheels before it reaches the goal.
+            # This prevents a pile approach from becoming a pass through it.
+            if dist < BRAKE_DISTANCE and closing_speed > desired_speed:
+                forward = -float(np.clip(
+                    BRAKE_GAIN * (closing_speed - desired_speed),
+                    MIN_APPROACH_SPEED,
+                    MAX_FORWARD,
+                ))
+            else:
+                forward = float(np.clip(FORWARD_GAIN * dist, -MAX_FORWARD, MAX_FORWARD))
+                if dist < BRAKE_DISTANCE:
+                    forward *= max(MIN_APPROACH_SPEED, dist / BRAKE_DISTANCE)
             turn = float(np.clip(PIVOT_TURN_GAIN * heading_err, -MAX_TURN, MAX_TURN))
 
         # Differential drive: left wheels = forward - turn, right wheels = forward + turn.
