@@ -1,5 +1,7 @@
 # ATOMZ
 
+**Team Members**: Keivalya Pandya, Chang Min Bark, Neel Mokaria, Srushti Madhure
+
 We are building a verifiable multi-agent construction RL environment + a swarm policy trained in it + a demo wrapper.
 
 Users pick a Mars construction blueprint in the web UI, which dispatches an AI agent (via Modal) to run a physics-based build simulation. The simulation runs in the `robot_env` MuJoCo environment, and the live output streams back to the browser.
