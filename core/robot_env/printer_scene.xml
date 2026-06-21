@@ -1,0 +1,128 @@
+<mujoco model="mars_printer_scene">
+  <compiler angle="degree" coordinate="local" inertiafromgeom="true"/>
+
+  <option timestep="0.002" gravity="0 0 -3.721">
+    <flag energy="enable"/>
+  </option>
+
+  <default>
+    <geom solref="0.01 1" solimp="0.95 0.99 0.001" friction="1.2 0.05 0.02"/>
+  </default>
+
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1="0.03 0.02 0.05" rgb2="0.65 0.32 0.18" width="512" height="512"/>
+    <texture name="soil_tex" type="2d" builtin="gradient" rgb1="0.72 0.35 0.22" rgb2="0.42 0.18 0.09" width="2048" height="2048"/>
+    <material name="terrain_mat" texture="soil_tex" texrepeat="8 8" shininess="0.03" specular="0.03"/>
+
+    <!-- Cazza-style printer livery: white shells, dark structure, blue accents. -->
+    <material name="printer_white" rgba="0.93 0.94 0.96 1" shininess="0.5" specular="0.4"/>
+    <material name="printer_black" rgba="0.09 0.10 0.12 1" shininess="0.45" specular="0.35"/>
+    <material name="printer_blue"  rgba="0.10 0.45 0.90 1" shininess="0.6" specular="0.5"/>
+    <material name="track_mat"     rgba="0.05 0.05 0.06 1" shininess="0.15" specular="0.1"/>
+    <material name="track_wheel"   rgba="0.14 0.15 0.17 1" shininess="0.3" specular="0.2"/>
+    <material name="nozzle_mat"    rgba="0.78 0.66 0.20 1" shininess="0.7" specular="0.6"/>
+    <material name="filament_mat"  rgba="0.80 0.78 0.72 1" shininess="0.1" specular="0.05"/>
+    <material name="bed_mat"       rgba="0.18 0.20 0.24 1" shininess="0.2" specular="0.15"/>
+
+    <mesh name="mars_terrain" file="Mars - Spirit Landing Site_smooth.stl" scale="0.25 0.25 0.25"/>
+    <hfield name="mars_heightfield" file="Mars - Spirit Landing Site_heightfield.png" size="21.219839 20.501948 2.819581 0.05"/>
+  </asset>
+
+  <worldbody>
+    <light directional="true" diffuse="0.85 0.75 0.65" specular="0.2 0.2 0.2" pos="0 0 150" dir="0.3 0.2 -1" castshadow="true"/>
+    <light directional="true" diffuse="0.25 0.15 0.1" pos="0 0 100" dir="-0.3 -0.2 -1"/>
+
+    <geom name="terrain_visual" type="mesh" mesh="mars_terrain" material="terrain_mat" contype="0" conaffinity="0" group="2"/>
+    <geom name="terrain_collision" type="hfield" hfield="mars_heightfield" pos="4.536614 -5.097652 3.032014" rgba="0 0 0 0" contype="0" conaffinity="0" group="2"/>
+    <geom name="ground_plane" type="plane" pos="0 0 3.31" size="8 8 0.1" material="terrain_mat" condim="6" group="1" contype="1" conaffinity="2"/>
+
+    <!-- Build plate: where the printer deposits material. -->
+    <geom name="build_plate" type="cylinder" pos="1.64 -0.11 3.318" size="0.34 0.008" material="bed_mat" contype="0" conaffinity="0"/>
+    <site name="target_site" pos="1.64 -0.11 3.39" size="0.02" rgba="0.1 1 0.2 0.0"/>
+
+    <!-- ============================================================ -->
+    <!-- Tracked mobile printer: stationary chassis with tank treads,  -->
+    <!-- a white tower housing, and the printing arm on top.           -->
+    <!-- Arm body offsets are IDENTICAL to mars_scene.xml so the        -->
+    <!-- analytic IK (ARM_YAW_BODY_WORLD, L1/L2/L3) is unchanged.       -->
+    <!-- ============================================================ -->
+    <body name="printer_base" pos="1.25 -0.5 3.55">
+      <!-- Main chassis hull -->
+      <geom name="chassis_hull" type="box" size="0.40 0.26 0.10" pos="0 0 0.0" material="printer_black" mass="6.0" contype="0" conaffinity="0"/>
+      <geom name="chassis_deck" type="box" size="0.34 0.22 0.03" pos="0 0 0.11" material="printer_white" mass="0.5" contype="0" conaffinity="0"/>
+
+      <!-- Left track assembly -->
+      <body name="track_left" pos="0 0.30 -0.06">
+        <geom name="track_left_belt" type="box" size="0.44 0.07 0.11" pos="0 0 0" material="track_mat" contype="0" conaffinity="0"/>
+        <geom name="track_left_w1" type="cylinder" size="0.13 0.075" zaxis="0 1 0" pos="-0.30 0 -0.02" material="track_wheel" contype="0" conaffinity="0"/>
+        <geom name="track_left_w2" type="cylinder" size="0.13 0.075" zaxis="0 1 0" pos="0.0 0 -0.02" material="track_wheel" contype="0" conaffinity="0"/>
+        <geom name="track_left_w3" type="cylinder" size="0.13 0.075" zaxis="0 1 0" pos="0.30 0 -0.02" material="track_wheel" contype="0" conaffinity="0"/>
+        <geom name="track_left_accent" type="box" size="0.22 0.072 0.04" pos="0 0 0.03" material="printer_blue" contype="0" conaffinity="0"/>
+      </body>
+
+      <!-- Right track assembly -->
+      <body name="track_right" pos="0 -0.30 -0.06">
+        <geom name="track_right_belt" type="box" size="0.44 0.07 0.11" pos="0 0 0" material="track_mat" contype="0" conaffinity="0"/>
+        <geom name="track_right_w1" type="cylinder" size="0.13 0.075" zaxis="0 1 0" pos="-0.30 0 -0.02" material="track_wheel" contype="0" conaffinity="0"/>
+        <geom name="track_right_w2" type="cylinder" size="0.13 0.075" zaxis="0 1 0" pos="0.0 0 -0.02" material="track_wheel" contype="0" conaffinity="0"/>
+        <geom name="track_right_w3" type="cylinder" size="0.13 0.075" zaxis="0 1 0" pos="0.30 0 -0.02" material="track_wheel" contype="0" conaffinity="0"/>
+        <geom name="track_right_accent" type="box" size="0.22 0.072 0.04" pos="0 0 0.03" material="printer_blue" contype="0" conaffinity="0"/>
+      </body>
+
+      <!-- White tower / shoulder housing rising from the deck -->
+      <geom name="tower_base" type="box" size="0.16 0.18 0.10" pos="-0.02 0 0.22" material="printer_white" mass="1.0" contype="0" conaffinity="0"/>
+      <geom name="tower_shoulder" type="box" size="0.14 0.16 0.09" pos="-0.02 0 0.40" material="printer_white" mass="0.8" contype="0" conaffinity="0"/>
+      <geom name="tower_vent" type="box" size="0.05 0.14 0.05" pos="0.12 0 0.30" material="printer_black" contype="0" conaffinity="0"/>
+
+      <!-- Printing arm mounted on top of the chassis deck (same offsets as mars_scene). -->
+      <body name="pick_place_arm" pos="0 0 0.09">
+        <geom name="arm_base" type="cylinder" size="0.085 0.05" pos="0 0 0.045" material="printer_black" mass="5.0" contype="0" conaffinity="0"/>
+        <body name="arm_yaw_body" pos="0 0 0.09">
+          <joint name="arm_yaw" type="hinge" axis="0 0 1" range="-100 100" damping="1.2"/>
+          <geom name="arm_yaw_hub" type="cylinder" size="0.09 0.06" pos="0 0 0.02" material="printer_white" mass="0.4" contype="0" conaffinity="0"/>
+          <body name="arm_upper" pos="0 0 0">
+            <joint name="arm_shoulder" type="hinge" axis="0 1 0" range="-65 80" damping="1.2"/>
+            <geom name="arm_shoulder_housing" type="box" size="0.09 0.08 0.09" pos="0.02 0 0" material="printer_white" mass="0.3" contype="0" conaffinity="0"/>
+            <geom name="arm_upper_link" type="capsule" fromto="0 0 0 0.42 0 0" size="0.05" material="printer_white" mass="0.5" contype="0" conaffinity="0"/>
+            <geom name="arm_upper_stripe" type="box" size="0.20 0.052 0.018" pos="0.21 0 0.03" material="printer_black" contype="0" conaffinity="0"/>
+            <body name="arm_forearm" pos="0.42 0 0">
+              <joint name="arm_elbow" type="hinge" axis="0 1 0" range="-110 170" damping="1.0"/>
+              <geom name="arm_elbow_hub" type="cylinder" size="0.06 0.06" zaxis="0 1 0" material="printer_black" mass="0.25" contype="0" conaffinity="0"/>
+              <geom name="arm_forearm_link" type="capsule" fromto="0 0 0 0.34 0 0" size="0.042" material="printer_white" mass="0.35" contype="0" conaffinity="0"/>
+              <geom name="arm_forearm_stripe" type="box" size="0.16 0.044 0.016" pos="0.17 0 0.025" material="printer_black" contype="0" conaffinity="0"/>
+              <body name="arm_wrist_body" pos="0.34 0 0">
+                <joint name="arm_wrist" type="hinge" axis="0 1 0" range="-160 160" damping="0.8"/>
+                <geom name="arm_wrist_hub" type="cylinder" size="0.05 0.05" zaxis="0 1 0" material="printer_black" mass="0.15" contype="0" conaffinity="0"/>
+                <!-- Extruder housing bridging the wrist to the nozzle column. -->
+                <geom name="extruder_body" type="box" size="0.06 0.045 0.045" pos="0.06 0 0.03" material="printer_white" mass="0.15" contype="0" conaffinity="0"/>
+                <!-- Nozzle column: points straight down with its tip exactly at ee_site (0.12,0,0),
+                     so IK (L3=0.12 along +x, same z as wrist) is preserved while it reads as a downward nozzle. -->
+                <geom name="nozzle_cone" type="cylinder" size="0.016 0.028" pos="0.12 0 0.028" material="nozzle_mat" mass="0.05" contype="0" conaffinity="0"/>
+                <geom name="nozzle_tip" type="cylinder" size="0.007 0.01" pos="0.12 0 0.0" material="nozzle_mat" mass="0.02" contype="0" conaffinity="0"/>
+                <site name="ee_site" pos="0.12 0 0" size="0.018" rgba="0.8 0.66 0.2 1"/>
+                <!-- Gripper joints retained (held at 0 by the bridge); hidden inside the extruder housing. -->
+                <body name="left_finger" pos="0.05 0.03 0.0">
+                  <joint name="left_gripper_slide" type="slide" axis="0 1 0" range="-0.035 0" damping="0.3"/>
+                  <geom name="left_finger_geom" type="box" size="0.01 0.008 0.02" material="printer_black" mass="0.02" contype="0" conaffinity="0"/>
+                </body>
+                <body name="right_finger" pos="0.05 -0.03 0.0">
+                  <joint name="right_gripper_slide" type="slide" axis="0 1 0" range="0 0.035" damping="0.3"/>
+                  <geom name="right_finger_geom" type="box" size="0.01 0.008 0.02" material="printer_black" mass="0.02" contype="0" conaffinity="0"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="arm_yaw_pos" joint="arm_yaw" kp="35" ctrlrange="-1.745 1.745" ctrllimited="true"/>
+    <position name="arm_shoulder_pos" joint="arm_shoulder" kp="45" ctrlrange="-1.134 1.396" ctrllimited="true"/>
+    <position name="arm_elbow_pos" joint="arm_elbow" kp="40" ctrlrange="-1.92 2.967" ctrllimited="true"/>
+    <position name="arm_wrist_pos" joint="arm_wrist" kp="25" ctrlrange="-2.793 2.793" ctrllimited="true"/>
+    <position name="left_gripper_pos" joint="left_gripper_slide" kp="60" ctrlrange="-0.035 0" ctrllimited="true"/>
+    <position name="right_gripper_pos" joint="right_gripper_slide" kp="60" ctrlrange="0 0.035" ctrllimited="true"/>
+  </actuator>
+</mujoco>
