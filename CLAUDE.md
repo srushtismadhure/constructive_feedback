@@ -1,11 +1,9 @@
 # Mars Construction Multi-Agent System — Project Memory
 
 ## Overview
-Hackathon project: autonomous Mars construction orchestrated by a multi-agent LLM system. Two decoupled pieces:
-- **Environment**: MuJoCo sim (teammate owns) — exposes Gym-style interface
-- **Brain**: LangGraph orchestration (this repo) — plans, assigns, validates, dispatches, replans
-
-**User owns**: orchestration layer only. Teammate owns MuJoCo sim + frontend.
+Autonomous Mars construction orchestrated by a multi-agent LLM system. Two decoupled pieces:
+- **Environment**: MuJoCo sim — exposes Gym-style interface
+- **Brain**: LangGraph orchestration — plans, assigns, validates, dispatches, replans
 
 ---
 
@@ -13,34 +11,46 @@ Hackathon project: autonomous Mars construction orchestrated by a multi-agent LL
 
 ```
 constructive_feedback/
-├── orchestration/              ← The Brain (fully built & tested)
-│   ├── __init__.py
-│   ├── contracts.py            ← All Pydantic schemas
-│   ├── env_interface.py        ← EnvInterface Protocol + MockEnv stub
-│   ├── blueprints/             ← JSON blueprint files
-│   │   ├── habitat_dome.json   (8 components: 2 foundation, 3 wall, 1 roof, 2 panel)
-│   │   ├── comm_tower.json
-│   │   └── landing_pad.json
-│   ├── blueprint_parser.py     ← JSON → ParsedBlueprint + topo sort
-│   ├── sequencer.py            ← ParsedBlueprint → TaskGraph
-│   ├── coordinator.py          ← greedy_coordinator + llm_coordinator (Fireworks MiniMax M3)
-│   ├── validator.py            ← pre-dispatch sanity checks
-│   ├── monitor.py              ← StatusReport → state update + ReplanTrigger
-│   └── graph.py                ← LangGraph state machine (main loop)
-└── web/
-    └── backend/
-        ├── main.py             ← Single-file Modal + FastAPI backend (ALL infra here)
-        ├── .env                ← FIREWORKS_API_KEY, FRONTEND_ORIGIN
-        ├── .env.example
-        └── pyproject.toml
+├── core/                       ← ALL Python, one uv env (pyproject.toml here)
+│   ├── pyproject.toml          ← langgraph, pydantic, openai, mujoco, numpy, modal, fastapi… (package=false)
+│   ├── main.py                 ← Single-file Modal + FastAPI backend (the orchestration API)
+│   ├── .env                    ← FIREWORKS_API_KEY, FRONTEND_ORIGIN (gitignored)
+│   ├── orchestration/          ← The Brain
+│   │   ├── __init__.py
+│   │   ├── contracts.py        ← All Pydantic schemas
+│   │   ├── env_interface.py    ← EnvInterface Protocol + MockEnv stub
+│   │   ├── blueprints/         ← JSON blueprint files
+│   │   │   ├── habitat_dome.json   (8 components: 2 foundation, 3 wall, 1 roof, 2 panel)
+│   │   │   ├── comm_tower.json
+│   │   │   └── landing_pad.json
+│   │   ├── blueprint_parser.py ← JSON → ParsedBlueprint + topo sort
+│   │   ├── sequencer.py        ← ParsedBlueprint → TaskGraph
+│   │   ├── coordinator.py      ← greedy_coordinator + llm_coordinator (Fireworks MiniMax M3)
+│   │   ├── validator.py        ← pre-dispatch sanity checks
+│   │   ├── monitor.py          ← StatusReport → state update + ReplanTrigger
+│   │   ├── graph.py            ← LangGraph state machine (main loop)
+│   │   └── mujoco_adapter.py   ← RoverEnvAdapter: robot_env → EnvInterface (the sim seam)
+│   ├── robot_env/              ← Mars MuJoCo sim
+│   │   ├── mars_scene.xml      ← terrain + differential-drive rover on a flat drive plane
+│   │   ├── hud_mujoco_bridge.py ← MarsMujocoBridge (HUD RobotBridge) + drive-to-goal reward
+│   │   └── run_hud_demo.py     ← passive-viewer demo driving the bridge
+│   └── tests/
+│       └── smoke_test.py       ← end-to-end integration check (run: uv run python tests/smoke_test.py)
+├── frontend/                   ← Next.js app (standalone; talks to backend over HTTP)
+└── robot_training/             ← Git submodule (worldsim-template) — RL training/eval reference
 ```
+
+All Python (`main.py`, `orchestration/`, `robot_env/`) sits under `core/` and shares one
+interpreter: the API runs the Brain and the adapter imports the sim in-process. Imports are
+top-level (`from orchestration...`, robot_env via sys.path) — `core/` is the package root,
+put on the path by the test (`parents[1]`) and by `main.py` (`parent`, for `add_local_python_source`).
 
 ---
 
 ## Key Architecture Decisions
 
 ### Single-file Modal pattern
-**CRITICAL**: Everything Modal-related lives in `web/backend/main.py`. Modal only mounts the entry-point file + declared `add_local_python_source(...)` packages. Splitting into `modal_config.py` + `agent.py` caused `ModuleNotFoundError` in container. Never split Modal infra across files again.
+**CRITICAL**: Everything Modal-related lives in `core/main.py`. Modal only mounts the entry-point file + declared `add_local_python_source(...)` packages. Splitting into `modal_config.py` + `agent.py` caused `ModuleNotFoundError` in container. Never split Modal infra across files again.
 
 ### LLM: Fireworks MiniMax M3 (NOT Anthropic)
 - Base URL: `https://api.fireworks.ai/inference/v1`
@@ -71,7 +81,37 @@ class EnvInterface(Protocol):
     def reset(self, blueprint_id: str, seed: int = 42) -> Observation: ...
     def step(self, action: Action) -> tuple[Observation, float, bool, dict]: ...
 ```
-Teammate implements this for MuJoCo. `MockEnv` in `env_interface.py` used until then.
+`MockEnv` in `env_interface.py` is the no-sim stub; `RoverEnvAdapter` in
+`mujoco_adapter.py` is the real MuJoCo implementation (see below).
+
+### robot_env + RoverEnvAdapter (MuJoCo integration)
+
+**robot_env** is a standalone MuJoCo sim (NOT Newton, NOT the `scenes/` layout). One
+differential-drive rover; `MarsMujocoBridge` is a HUD `RobotBridge`:
+- action = `[forward_speed, turn_speed]` ∈ [-1,1] → differential wheel torques
+- state = `[x, y, z, yaw, vx, vy, vz, yaw_rate]` (8) + a 256×256 RGB frame
+- **reward** = drive-to-goal: dense progress (`prev_dist - dist`) + `SUCCESS_BONUS` on
+  arrival within `GOAL_TOLERANCE` (0.4 m). `set_goal(x, y)` re-points the goal without
+  re-loading the scene, so one bridge serves many sequential goals.
+
+**RoverEnvAdapter** (`core/orchestration/mujoco_adapter.py`) wraps the bridge as an
+`EnvInterface` so the Brain can drive it:
+- **One rover ≠ a fleet.** The Brain plans for 6 robots; the sim has 1. The adapter
+  treats the rover as the shared embodiment — it runs each dispatched Action in order,
+  driving to that task's grid cell. Fleet positions stay in the Brain's registry.
+- **grid → world**: cell `(gx, gy)` → `(origin + gx*cell, origin + gy*cell)`, default
+  `origin=(-3.5,-3.5)`, `cell=1.0 m` (8×8 grid lands inside the ±8 m drive plane).
+- **Action → maneuver**: `step()` sets the goal, runs a pure-pursuit controller
+  (pivot in place until facing the goal, then drive) for up to `max_drive_steps` (220).
+  Reached → `place`/`weld`/`excavate` marks the cell built. Not reached →
+  `info["rejection_reason"]` set → the Brain marks the task failed → replan.
+- **async note**: `MarsMujocoBridge.reset` is async (does only sync work); the adapter
+  calls it via `asyncio.run` (safe — `graph.invoke` is sync, no running loop).
+- **what the graph actually reads** from `step()`: `info["rejection_reason"]` and
+  `reward`. The returned `Observation`/`done` are built for completeness, not consumed.
+
+**One core, two front doors**: `MarsMujocoBridge` is the single physics+reward core.
+Brain → `RoverEnvAdapter` (EnvInterface); VLA policy / `hud eval` → HUD `RobotEndpoint`.
 
 ---
 
@@ -111,6 +151,11 @@ image = (
     .add_local_python_source("orchestration")  # mounts the orchestration package
 )
 ```
+main.py sits in `core/` next to `orchestration/`, but `modal serve/deploy` runs with `-m`
+(repo root on the path, not `core/`), so main.py prepends its own dir to `sys.path`
+(`Path(__file__).resolve().parent`) before this runs — that's what lets
+`add_local_python_source("orchestration")` resolve. The backend still uses `MockEnv` (no
+`robot_env`/`mujoco` in the image yet; add them here + to the image to drive the real sim).
 
 ### Modal app
 - App name: `"mars-construction"`
@@ -139,7 +184,7 @@ image = (
 
 ## Secrets and Environment
 
-### web/backend/.env (local, gitignored)
+### core/.env (local, gitignored)
 ```
 FIREWORKS_API_KEY=fw_...
 FRONTEND_ORIGIN=http://localhost:3000
@@ -152,7 +197,7 @@ python3 -m modal secret create fireworks-api-key FIREWORKS_API_KEY=fw_...
 
 ---
 
-## Robot Fleet (default, until MuJoCo adapter provides state)
+## Robot Fleet (default)
 ```python
 Robot(id="excavator-1", role="excavator", capabilities=["excavate"], position=(1, 1))
 Robot(id="excavator-2", role="excavator", capabilities=["excavate"], position=(6, 6))
@@ -167,6 +212,11 @@ Robot(id="welder-2",    role="welder",    capabilities=["weld", "place"], positi
 ## Verified Tests (passing)
 1. **Greedy pipeline**: `habitat-dome` → 14 tasks, 14 steps, all done
 2. **Replan test**: injected `excavate` failure → replan triggered → build recovered in 15 steps
+3. **Rover controller**: `RoverEnvAdapter` drives to grid targets across the plane (6/6 reached)
+4. **Brain ↔ rover e2e**: `run_orchestration("habitat-dome", env=RoverEnvAdapter(), ...)` →
+   14 tasks done in 14 steps; rover physically drives to each target in MuJoCo.
+
+Run all of the above from `core/`: `cd core && uv sync && uv run python tests/smoke_test.py`.
 
 ---
 
@@ -174,7 +224,7 @@ Robot(id="welder-2",    role="welder",    capabilities=["weld", "place"], positi
 
 ### Dev (hot-reload, run from repo root)
 ```bash
-python3 -m modal serve web/backend/main.py
+python3 -m modal serve core/main.py
 ```
 URL: `https://constructive-feedback--mars-construction-fastapi-app-dev.modal.run`
 
@@ -197,30 +247,10 @@ Look for `[MiniMax M3]` in reasoning events. `FALLBACK:` prefix means key not re
 
 ### Deploy to prod
 ```bash
-python3 -m modal deploy web/backend/main.py
+python3 -m modal deploy core/main.py
 ```
 
 ### Local FastAPI only (no Modal)
 ```bash
-python3 web/backend/main.py
+cd core && make dev      # uvicorn main:web_app --reload
 ```
-
----
-
-## Teammate Integration
-Teammate implements `EnvInterface` for MuJoCo:
-```python
-class MyMuJoCoEnv:
-    def reset(self, blueprint_id: str, seed: int = 42) -> Observation: ...
-    def step(self, action: Action) -> tuple[Observation, float, bool, dict]: ...
-```
-Pass as `env=` to `run_construction_agent` or `run_orchestration`. The `info` dict from `step()` should include `"rejection_reason": str | None`.
-
----
-
-## Demo Narrative
-1. Show blueprint + empty Mars grid
-2. Hit run → robots construct in dependency order
-3. Trigger dust storm → robot goes broken
-4. Show coordinator reasoning text → tasks reassigned → build recovers
-5. Metrics: LLM coordinator vs greedy baseline (steps to completion)
